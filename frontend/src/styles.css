@@ -1,0 +1,24 @@
+@import "tailwindcss";
+
+/* Design tokens from the project's DESIGN.md, declared once so Tailwind generates utilities
+   (bg-primary, text-ink, rounded-pill ...). Consume them as utilities, never as raw variables. */
+@theme {
+    --color-primary: #4a154b;
+    --color-primary-press: #611f69;
+    --color-primary-tint: #592466;
+    --color-on-primary: #ffffff;
+    --color-ink: #1d1d1d;
+    --color-ink-mute: #696969;
+    --color-link: #1264a3;
+    --color-link-hover: #3860be;
+    --color-cream: #f4ede4;
+    --color-lavender: #f9f0ff;
+    --color-hairline: #e6e6e6;
+    --color-err: #cc4117;
+    --color-ok: #007a5a;
+    --color-mute: #d9bdde;
+
+    --radius-pill: 90px;
+
+    --font-sans: "Inter", "Noto Sans Thai", system-ui, -apple-system, sans-serif;
+}

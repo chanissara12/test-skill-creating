@@ -6,9 +6,9 @@
 
 **Status:** ready-for-agent
 
-- [ ] The backend builds, its (empty) test project runs green, and the format check from the backend instructions passes
-- [ ] The frontend builds and its test runner runs green; a Tailwind utility using a DESIGN.md token (for example the primary colour) renders correctly
-- [ ] The page displays the backend's health response when both apps run locally (CORS allows the local frontend origin only)
-- [ ] Layer dependency direction is respected (Domain depends on nothing project-specific)
-- [ ] Config templates contain placeholder values only; no secrets are committed and `.env`-style files are ignored
-- [ ] The commands listed in the frontend and backend instruction files all work as written
+- [x] The backend builds, its (empty) test project runs green, and the format check from the backend instructions passes
+- [x] The frontend builds and its test runner runs green; a Tailwind utility using a DESIGN.md token (for example the primary colour) renders correctly
+- [x] The page displays the backend's health response when both apps run locally (CORS allows the local frontend origin only)
+- [x] Layer dependency direction is respected (Domain depends on nothing project-specific)
+- [x] Config templates contain placeholder values only; no secrets are committed and `.env`-style files are ignored
+- [x] The commands listed in the frontend and backend instruction files all work as written
