@@ -1,0 +1,264 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PROTOTYPE - Work Time Log</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Noto+Sans+Thai:wght@400;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+// Tokens copied from DESIGN.md (colors, 4px input radius, Inter). Don't add a third accent colour.
+tailwind.config = { theme: { extend: {
+  colors: { primary: '#4a154b', 'primary-press': '#611f69', 'primary-tint': '#592466', ink: '#1d1d1d', 'ink-mute': '#696969',
+            lavender: '#f9f0ff', cream: '#f4ede4', hairline: '#e6e6e6', mute: '#d9bdde', err: '#cc4117' },
+  fontFamily: { sans: ['Inter', 'Noto Sans Thai', 'system-ui', 'sans-serif'] } } } };
+</script>
+<!--
+  PROTOTYPE (throwaway). Question: "What should the Work Time Log screen look like?"
+  Styled with DESIGN.md. Three structurally different variants of the weekly timetable (Sun-Sat), switch with
+  the bottom bar or the arrow keys, or ?variant=A|B|C.
+  In-memory fake data only: nothing is saved, no backend. Needs internet for Tailwind CDN.
+-->
+</head>
+<body class="bg-white font-sans text-ink">
+<div class="bg-amber-300 text-amber-950 text-xs text-center py-1 font-medium">PROTOTYPE: ข้อมูลจำลองในหน่วยความจำ รีเฟรชแล้วรีเซ็ต ไม่ใช่โค้ดจริง</div>
+<div id="app"></div>
+<div id="detail"></div>
+<div id="switcher" class="fixed bottom-4 left-1/2 -translate-x-1/2 z-50"></div>
+
+<script>
+const H = 3600000;
+const DN = ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส'];
+const VARIANTS = { A: 'Week grid + top bar', B: 'Sidebar timer + compact grid', C: 'Day lanes (horizontal)' };
+
+const pad = n => String(n).padStart(2, '0');
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const hm = t => { const d = new Date(t); return pad(d.getHours()) + ':' + pad(d.getMinutes()); };
+const ymd = t => { const d = new Date(t); return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); };
+const dur = ms => { const m = Math.floor(ms / 60000); return Math.floor(m / 60) + ':' + pad(m % 60); };
+const durS = ms => { const s = Math.floor(ms / 1000); return pad(Math.floor(s / 3600)) + ':' + pad(Math.floor(s / 60) % 60) + ':' + pad(s % 60); };
+const startOfDay = t => { const d = new Date(t); d.setHours(0, 0, 0, 0); return d.getTime(); };
+const addDays = (t, n) => { const d = new Date(t); d.setDate(d.getDate() + n); return d.getTime(); };
+const startOfWeek = t => addDays(startOfDay(t), -new Date(t).getDay());
+
+// ---------- state ----------
+const S = { now: Date.now(), weekStart: 0, entries: [], draft: '', selected: null, confirm: false, nextId: 1, variant: 'A' };
+S.weekStart = startOfWeek(S.now);
+
+(function seed() {
+  const plan = [[9, 0, 10, 30, 'Code review'], [10, 45, 12, 0, 'Write spec'], [13, 0, 15, 15, 'Implement API'], [15, 30, 16, 0, 'Standup notes'], [16, 10, 16, 15, 'Reply email']];
+  for (const w of [-7, 0]) {
+    const base = addDays(S.weekStart, w);
+    for (let day = 1; day <= 5; day++) {
+      for (const [h1, m1, h2, m2, title] of plan) {
+        const d = addDays(base, day);
+        const start = d + h1 * H + m1 * 60000, stop = d + h2 * H + m2 * 60000;
+        if (stop <= S.now) S.entries.push({ id: S.nextId++, title, start, stop });
+      }
+    }
+    const d = addDays(base, 2), start = d + 23 * H, stop = d + 25 * H; // crosses midnight
+    if (stop <= S.now) S.entries.push({ id: S.nextId++, title: 'Deploy hotfix (crosses midnight)', start, stop });
+  }
+})();
+
+// ---------- model helpers ----------
+const running = () => S.entries.find(e => e.stop == null);
+const clip = (e, day) => { const s = Math.max(e.start, day), t = Math.min(e.stop ?? S.now, addDays(day, 1)); return t > s ? [s, t] : null; };
+const dayTotal = day => S.entries.reduce((sum, e) => { const c = clip(e, day); return sum + (c ? c[1] - c[0] : 0); }, 0);
+const weekDays = () => Array.from({ length: 7 }, (_, i) => addDays(S.weekStart, i));
+const weekTotal = () => weekDays().reduce((sum, d) => sum + dayTotal(d), 0);
+const isToday = d => d === startOfDay(S.now);
+const entriesOn = day => S.entries.filter(e => clip(e, day));
+
+// ---------- actions ----------
+function toggle() {
+  const r = running();
+  if (r) { r.stop = Date.now(); }
+  else {
+    const title = S.draft.trim().slice(0, 200);
+    if (!title) return;
+    S.entries.push({ id: S.nextId++, title, start: Date.now(), stop: null });
+    S.draft = '';
+  }
+  S.now = Date.now();
+  render();
+}
+const syncBtn = () => { const b = document.getElementById('btn'); if (b) b.disabled = !running() && !S.draft.trim(); };
+const shiftWeek = n => { S.weekStart = n === 0 ? startOfWeek(Date.now()) : addDays(S.weekStart, 7 * n); render(true); };
+const pick = id => { S.selected = id; S.confirm = false; renderDetail(); };
+const closeDetail = () => { S.selected = null; renderDetail(); };
+const askDelete = () => { S.confirm = true; renderDetail(); };
+const doDelete = () => { S.entries = S.entries.filter(e => e.id !== S.selected); S.selected = null; renderDetail(); refreshDynamic(); };
+
+// ---------- shared UI bits ----------
+function timerCtl(size) {
+  const r = running();
+  const big = size === 'big';
+  return `
+    <input id="title" maxlength="200" placeholder="ทำงานอะไรอยู่?" ${r ? 'disabled' : ''} value="${esc(r ? r.title : S.draft)}"
+      oninput="S.draft=this.value;syncBtn()" onkeydown="if(event.key==='Enter')toggle()"
+      class="${big ? 'w-full' : 'flex-1'} rounded border border-hairline px-3 ${big ? 'py-3 text-base' : 'py-2 text-sm'} text-ink focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-lavender disabled:text-ink-mute">
+    <button id="btn" onclick="toggle()" ${!r && !S.draft.trim() ? 'disabled' : ''}
+      class="shrink-0 whitespace-nowrap cursor-pointer rounded-full px-7 py-3.5 text-base font-bold ${big ? 'w-full border-2 border-white text-white hover:bg-primary-press active:bg-primary-tint focus:ring-white' : 'bg-primary text-white hover:bg-primary-press active:bg-primary-tint focus:ring-primary'} focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-40 disabled:cursor-not-allowed">${r ? '■ หยุด' : '▶ เริ่ม'}</button>`;
+}
+const elapsedTxt = () => { const r = running(); return r ? durS(S.now - r.start) : '00:00:00'; };
+const elapsed = cls => `<span data-elapsed class="tabular-nums font-bold tracking-tight ${cls}">${elapsedTxt()}</span>`;
+
+function weekNav(dark) {
+  const btn = `shrink-0 whitespace-nowrap cursor-pointer rounded-full px-5 py-2.5 text-sm font-bold focus:outline-none focus:ring-2 ${dark ? 'border border-primary-tint text-white hover:bg-primary-press active:bg-primary-tint focus:ring-white' : 'bg-lavender text-ink hover:bg-[#efe0fa] active:bg-[#e9d8ff] focus:ring-primary'}`;
+  return `<div class="flex items-center gap-2">
+    <button class="${btn}" onclick="shiftWeek(-1)" aria-label="สัปดาห์ก่อนหน้า">‹</button>
+    <button class="${btn}" onclick="shiftWeek(0)">สัปดาห์นี้</button>
+    <button class="${btn}" onclick="shiftWeek(1)" aria-label="สัปดาห์ถัดไป">›</button>
+    <span class="text-sm tabular-nums ${dark ? 'text-mute' : 'text-ink-mute'}">${ymd(S.weekStart)} – ${ymd(addDays(S.weekStart, 6))}</span>
+  </div>`;
+}
+const weekTotalTxt = () => dur(weekTotal());
+
+function vBlock(e, day, pxH) {
+  const [s, t] = clip(e, day);
+  const top = (s - day) / H * pxH, h = Math.max((t - s) / H * pxH, 18);
+  const run = e.stop == null;
+  return `<button onclick="pick(${e.id})" title="${esc(e.title)} ${hm(e.start)}–${e.stop ? hm(e.stop) : 'กำลังเดิน'}"
+    class="absolute left-0.5 right-0.5 overflow-hidden rounded px-1 text-left text-[11px] leading-tight cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary ${run ? 'border-2 border-dashed border-primary bg-white text-ink hover:bg-lavender' : 'border-l-4 border-primary bg-lavender text-ink hover:bg-[#efe0fa] active:bg-[#e9d8ff]'}"
+    style="top:${top}px;height:${h}px"><div class="truncate font-medium">${esc(e.title)}</div>${h > 30 ? `<div class="opacity-80">${hm(s)}–${run ? 'now' : hm(t)}</div>` : ''}</button>`;
+}
+function hBlock(e, day, pxW) {
+  const [s, t] = clip(e, day);
+  const left = (s - day) / H * pxW, w = Math.max((t - s) / H * pxW, 18);
+  const run = e.stop == null;
+  return `<button onclick="pick(${e.id})" title="${esc(e.title)} ${hm(e.start)}–${e.stop ? hm(e.stop) : 'กำลังเดิน'}"
+    class="absolute top-1.5 bottom-1.5 overflow-hidden rounded px-1.5 text-left text-[11px] leading-tight cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary ${run ? 'border-2 border-dashed border-primary bg-white text-ink hover:bg-lavender' : 'border-l-4 border-primary bg-lavender text-ink hover:bg-[#efe0fa] active:bg-[#e9d8ff]'}"
+    style="left:${left}px;width:${w}px"><div class="truncate font-medium">${esc(e.title)}</div><div class="truncate opacity-80">${hm(s)}–${run ? 'now' : hm(t)}</div></button>`;
+}
+
+// ---------- grids ----------
+function gridV(pxH, minW) {
+  const days = weekDays(), total = 24 * pxH;
+  const cols = `48px repeat(7,minmax(${minW}px,1fr))`;
+  const lines = `background-image:repeating-linear-gradient(to bottom,#e2e8f0 0,#e2e8f0 1px,transparent 1px,transparent ${pxH}px)`;
+  const head = `<div class="sticky top-0 z-20 grid border-b border-hairline bg-white" style="grid-template-columns:${cols}"><div></div>${days.map(d => `
+    <div class="border-l px-2 py-1 text-center ${isToday(d) ? 'bg-lavender' : ''}">
+      <div class="text-xs ${isToday(d) ? 'font-semibold text-primary' : 'text-ink-mute'}">${DN[new Date(d).getDay()]} ${new Date(d).getDate()}</div>
+      <div class="tabular-nums text-[11px] text-ink-mute">${dur(dayTotal(d))}</div></div>`).join('')}</div>`;
+  const hours = Array.from({ length: 24 }, (_, h) => `<div class="absolute right-1 text-[10px] text-ink-mute" style="top:${Math.max(2, h * pxH - 6)}px">${pad(h)}:00</div>`).join('');
+  const body = `<div class="grid" style="grid-template-columns:${cols}"><div class="relative" style="height:${total}px">${hours}</div>${days.map(d => `
+    <div class="relative border-l border-hairline" style="height:${total}px;${lines}">
+      ${isToday(d) ? `<div class="absolute left-0 right-0 z-10 border-t-2 border-ink" style="top:${(S.now - d) / H * pxH}px"></div>` : ''}
+      ${entriesOn(d).map(e => vBlock(e, d, pxH)).join('')}</div>`).join('')}</div>`;
+  return head + body;
+}
+function gridH(pxW) {
+  const days = weekDays(), total = 24 * pxW;
+  const lines = `background-image:repeating-linear-gradient(to right,#e2e8f0 0,#e2e8f0 1px,transparent 1px,transparent ${pxW}px)`;
+  const hours = Array.from({ length: 24 }, (_, h) => `<div class="absolute top-1.5 pl-1 text-[10px] text-ink-mute" style="left:${h * pxW}px">${pad(h)}:00</div>`).join('');
+  const head = `<div class="sticky top-0 z-30 flex border-b border-hairline bg-white"><div class="sticky left-0 z-40 w-28 shrink-0 bg-white"></div><div class="relative h-7" style="width:${total}px">${hours}</div></div>`;
+  const rows = days.map(d => `
+    <div class="flex border-b border-hairline">
+      <div class="sticky left-0 z-20 w-28 shrink-0 border-r bg-white px-2 py-2 ${isToday(d) ? 'bg-lavender' : ''}">
+        <div class="text-sm font-semibold ${isToday(d) ? 'text-primary' : 'text-ink'}">${DN[new Date(d).getDay()]} ${ymd(d).slice(5)}</div>
+        <div class="tabular-nums text-xs text-ink-mute">${dur(dayTotal(d))}</div></div>
+      <div class="relative h-16" style="width:${total}px;${lines}">
+        ${isToday(d) ? `<div class="absolute top-0 bottom-0 z-10 border-l-2 border-ink" style="left:${(S.now - d) / H * pxW}px"></div>` : ''}
+        ${entriesOn(d).map(e => hBlock(e, d, pxW)).join('')}</div></div>`).join('');
+  return `<div style="width:${112 + total}px">${head}${rows}</div>`;
+}
+
+// ---------- variants ----------
+function variantA() {
+  return `
+    <div class="flex items-center gap-3 border-b border-hairline bg-white p-3">${timerCtl()}${elapsed('text-2xl text-ink')}</div>
+    <div class="flex items-center justify-between px-3 py-2">${weekNav()}<div class="text-sm text-ink-mute">รวมสัปดาห์ <span data-wk class="tabular-nums font-semibold">${weekTotalTxt()}</span></div></div>
+    <div id="scroll" class="overflow-auto border-t bg-white" style="height:calc(100vh - 235px);min-height:360px"><div id="content">${gridV(48, 110)}</div></div>`;
+}
+const daysList = () => weekDays().map(d => `<div class="flex justify-between py-0.5 text-sm ${isToday(d) ? 'font-semibold text-white' : 'text-mute'}"><span>${DN[new Date(d).getDay()]} ${ymd(d).slice(5)}</span><span class="tabular-nums">${dur(dayTotal(d))}</span></div>`).join('');
+function variantB() {
+  return `<div class="flex" style="height:calc(100vh - 24px)">
+    <aside class="flex w-72 shrink-0 flex-col gap-3 bg-primary p-4 text-white">
+      <div class="text-xs uppercase tracking-wide text-mute">${running() ? 'กำลังจับเวลา' : 'พร้อมเริ่ม'}</div>
+      ${elapsed('text-5xl text-white')}
+      ${timerCtl('big')}
+      <hr class="border-primary-tint">
+      ${weekNav(true)}
+      <div class="text-sm text-mute">รวมสัปดาห์ <span data-wk class="tabular-nums text-lg font-semibold text-white">${weekTotalTxt()}</span></div>
+      <div data-days>${daysList()}</div>
+    </aside>
+    <div id="scroll" class="flex-1 overflow-auto bg-white"><div id="content">${gridV(28, 90)}</div></div></div>`;
+}
+function variantC() {
+  return `
+    <div class="flex items-center gap-4 bg-white p-4 shadow-sm">
+      ${elapsed('text-4xl text-ink')}
+      <div class="flex flex-1 items-center gap-3">${timerCtl()}</div>
+    </div>
+    <div class="flex items-center justify-between px-4 py-2">${weekNav()}<div class="text-sm text-ink-mute">รวมสัปดาห์ <span data-wk class="tabular-nums font-semibold">${weekTotalTxt()}</span></div></div>
+    <div id="scroll" class="mx-4 overflow-auto rounded border bg-white" style="height:calc(100vh - 245px);min-height:360px"><div id="content">${gridH(56)}</div></div>`;
+}
+const gridFor = () => S.variant === 'B' ? gridV(28, 90) : S.variant === 'C' ? gridH(56) : gridV(48, 110);
+
+// ---------- render ----------
+function render(keepScroll = true) {
+  const old = document.getElementById('scroll');
+  const pos = old && keepScroll ? [old.scrollTop, old.scrollLeft] : null;
+  document.getElementById('app').innerHTML = S.variant === 'B' ? variantB() : S.variant === 'C' ? variantC() : variantA();
+  const sc = document.getElementById('scroll');
+  if (pos) { sc.scrollTop = pos[0]; sc.scrollLeft = pos[1]; }
+  else {
+    const hr = (S.now - startOfDay(S.now)) / H;
+    if (S.variant === 'C') sc.scrollLeft = Math.max(0, hr * 56 - 300);
+    else sc.scrollTop = Math.max(0, hr * (S.variant === 'B' ? 28 : 48) - 150);
+  }
+  renderSwitcher();
+}
+function refreshDynamic() {
+  document.querySelectorAll('[data-elapsed]').forEach(el => el.textContent = elapsedTxt());
+  document.querySelectorAll('[data-wk]').forEach(el => el.textContent = weekTotalTxt());
+  const c = document.getElementById('content'); if (c) c.innerHTML = gridFor();
+  document.querySelectorAll('[data-days]').forEach(el => el.innerHTML = daysList());
+}
+function renderDetail() {
+  const e = S.entries.find(x => x.id === S.selected), box = document.getElementById('detail');
+  if (!e) { box.innerHTML = ''; return; }
+  const run = e.stop == null;
+  box.innerHTML = `<div class="fixed inset-0 z-40 flex items-center justify-center bg-black/40" onclick="if(event.target===this)closeDetail()">
+    <div class="w-96 rounded-2xl bg-white p-8 shadow-[0_0_32px_rgba(0,0,0,0.1)]">
+      <div class="text-lg font-semibold">${esc(e.title)}</div>
+      <dl class="mt-3 space-y-1 text-sm text-ink-mute">
+        <div class="flex justify-between"><dt>เริ่ม</dt><dd class="tabular-nums">${ymd(e.start)} ${hm(e.start)}</dd></div>
+        <div class="flex justify-between"><dt>หยุด</dt><dd class="tabular-nums">${run ? 'กำลังเดิน…' : ymd(e.stop) + ' ' + hm(e.stop)}</dd></div>
+        <div class="flex justify-between"><dt>ระยะเวลา</dt><dd class="tabular-nums">${dur((e.stop ?? S.now) - e.start)}</dd></div>
+      </dl>
+      <div class="mt-5 flex justify-end gap-2">
+        <button onclick="closeDetail()" class="cursor-pointer rounded-full bg-lavender px-6 py-2.5 text-sm font-bold text-ink hover:bg-[#efe0fa] active:bg-[#e9d8ff] focus:outline-none focus:ring-2 focus:ring-primary">ปิด</button>
+        ${run ? '<span class="self-center text-xs text-ink-mute">หยุดก่อนจึงลบได้</span>'
+          : S.confirm ? '<button onclick="doDelete()" class="cursor-pointer rounded-full bg-err px-6 py-2.5 text-sm font-bold text-white hover:opacity-90 active:opacity-80 focus:outline-none focus:ring-2 focus:ring-err">ยืนยันลบ</button>'
+          : '<button onclick="askDelete()" class="cursor-pointer rounded-full border-2 border-err px-6 py-2.5 text-sm font-bold text-err hover:bg-lavender active:bg-[#efe0fa] focus:outline-none focus:ring-2 focus:ring-err">ลบ</button>'}
+      </div></div></div>`;
+}
+function renderSwitcher() {
+  const keys = Object.keys(VARIANTS), btn = 'cursor-pointer px-3 text-lg hover:text-amber-300 focus:outline-none';
+  document.getElementById('switcher').innerHTML = `<div class="flex items-center rounded-full bg-black py-2 text-white shadow-lg ring-1 ring-white/30">
+    <button class="${btn}" onclick="cycle(-1)" aria-label="ก่อนหน้า">←</button>
+    <span class="px-2 text-sm font-medium">${S.variant} (${VARIANTS[S.variant]})</span>
+    <button class="${btn}" onclick="cycle(1)" aria-label="ถัดไป">→</button></div>`;
+}
+function cycle(n) {
+  const keys = Object.keys(VARIANTS);
+  S.variant = keys[(keys.indexOf(S.variant) + n + keys.length) % keys.length];
+  try { history.replaceState(null, '', '?variant=' + S.variant); } catch { /* file:// may refuse; switching still works */ }
+  render(false);
+}
+
+// ---------- boot ----------
+const v = new URLSearchParams(location.search).get('variant');
+if (v && VARIANTS[v]) S.variant = v;
+document.addEventListener('keydown', ev => {
+  if (/INPUT|TEXTAREA/.test(document.activeElement.tagName) || document.activeElement.isContentEditable) return;
+  if (ev.key === 'ArrowLeft') cycle(-1); else if (ev.key === 'ArrowRight') cycle(1);
+});
+setInterval(() => { S.now = Date.now(); refreshDynamic(); }, 1000);
+render(false);
+</script>
+</body>
+</html>
