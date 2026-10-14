@@ -8,16 +8,12 @@ using TestSkillCreating.Service.Implements.Tracking;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Real connection strings live in an uncommitted local file (matched by .gitignore);
-// appsettings.Example.json shows the shape.
-builder.Configuration.AddJsonFile("appsettings.local.json", optional: true, reloadOnChange: true);
-
 // A missing or malformed request body gets the same { message } shape as every other error.
 builder.Services.AddControllers().ConfigureApiBehaviorOptions(options =>
     options.InvalidModelStateResponseFactory = _ =>
         new BadRequestObjectResult(new { message = "The request body is missing or invalid." }));
 
-// The context is created lazily, so the API still starts (and /api/health works) before a database exists.
+// The context is created lazily, so the API still starts before a database exists.
 builder.Services.AddDbContext<TimeLogDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("Default")));
 builder.Services.AddScoped<ITimerService, TimerService>();
