@@ -8,10 +8,11 @@ The user's part: review the script, create the application database and a **sepa
 
 **Blocked by:** 01 (Project skeleton).
 
-**Status:** ready-for-human
+**Status:** done
 
-- [ ] The script is delivered for review and has not been executed by the agent
-- [ ] User confirms the application database and the test database exist with the table created
-- [ ] The backend connects using configuration only; real connection strings are not committed
-- [ ] A smoke check (through the backend's public behaviour, not by editing schema) can write and read one Time Entry against the test database
-- [ ] The backend instructions' Tech Stack and database rules still match what was built (Npgsql provider, timestamptz, snake_case)
+- [x] The script is delivered for review and has not been executed by the agent
+- [x] User confirms the application database and the test database exist with the table created
+- [x] The backend connects using configuration only
+- [ ] Real connection strings are not committed. Not yet true in spirit: the password currently sits in the git-tracked `appsettings.Development.json` (not committed so far). The user chose to leave it there, so do NOT commit that file as it is.
+- [x] A smoke check (through the backend's public behaviour, not by editing schema) can write and read one Time Entry against the test database
+- [x] The backend instructions' Tech Stack and database rules still match what was built (Npgsql provider, timestamptz, snake_case)
