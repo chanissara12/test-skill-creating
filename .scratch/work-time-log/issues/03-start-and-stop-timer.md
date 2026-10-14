@@ -6,13 +6,13 @@ Rules to honour (see the spec): the title is trimmed, required, and at most 200 
 
 **Blocked by:** 02 (Database script and connection).
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Starting with a valid title creates a Running Timer and the page shows elapsed time updating every second
-- [ ] Stopping saves the Time Entry; the page returns to its idle state
-- [ ] Reloading the page while a timer runs shows the same Running Timer with the correct elapsed time
-- [ ] An empty or over-length title is rejected by the API and the Start button is disabled for an empty title
-- [ ] A second start while one is running is refused by the API with a meaningful message; stopping with nothing running is refused too
-- [ ] API tests (xUnit, against the real test database, Arrange / Act / Assert) cover start, stop, get-running, validation, and the refusal cases; they exercise the public API only
-- [ ] The validation exception pattern from the backend instructions is created here and reused for business-rule failures; no internals leak in responses
-- [ ] Keyboard focus is visible on the input and button; the Start/Stop button follows DESIGN.md (single filled aubergine pill)
+- [x] Starting with a valid title creates a Running Timer and the page shows elapsed time updating every second
+- [x] Stopping saves the Time Entry; the page returns to its idle state
+- [x] Reloading the page while a timer runs shows the same Running Timer with the correct elapsed time
+- [x] An empty or over-length title is rejected by the API and the Start button is disabled for an empty title
+- [x] A second start while one is running is refused by the API with a meaningful message; stopping with nothing running is refused too
+- [x] API tests (xUnit, against the real test database, Arrange / Act / Assert) cover start, stop, get-running, validation, and the refusal cases; they exercise the public API only
+- [x] The validation exception pattern from the backend instructions is created here and reused for business-rule failures; no internals leak in responses
+- [x] Keyboard focus is visible on the input and button; the Start/Stop button follows DESIGN.md (single filled aubergine pill)

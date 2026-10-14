@@ -1,6 +1,10 @@
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
 using TestSkillCreating.Domain.Database;
+using TestSkillCreating.Domain.Interfaces.Tracking;
+using TestSkillCreating.Server.Middlewares;
+using TestSkillCreating.Service.Implements.Tracking;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -8,11 +12,15 @@ var builder = WebApplication.CreateBuilder(args);
 // appsettings.Example.json shows the shape.
 builder.Configuration.AddJsonFile("appsettings.local.json", optional: true, reloadOnChange: true);
 
-builder.Services.AddControllers();
+// A missing or malformed request body gets the same { message } shape as every other error.
+builder.Services.AddControllers().ConfigureApiBehaviorOptions(options =>
+    options.InvalidModelStateResponseFactory = _ =>
+        new BadRequestObjectResult(new { message = "The request body is missing or invalid." }));
 
 // The context is created lazily, so the API still starts (and /api/health works) before a database exists.
 builder.Services.AddDbContext<TimeLogDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("Default")));
+builder.Services.AddScoped<ITimerService, TimerService>();
 
 // Only the configured frontend origin may call the API from a browser.
 var allowedOrigin = builder.Configuration["Cors:AllowedOrigin"]
@@ -22,8 +30,12 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
+app.UseMiddleware<ExceptionHandlingMiddleware>();
 app.UseCors();
 app.UseAuthorization();
 app.MapControllers();
 
 app.Run();
+
+// Lets the API tests start the real app in memory.
+public partial class Program;

@@ -1,8 +1,5 @@
-<main class="font-sans text-ink p-8">
-    <h1 class="text-2xl font-bold">Work Time Log</h1>
-    <p class="mt-4 text-ink-mute">
-        Backend:
-        <span class="rounded-pill bg-primary px-3 py-1 text-sm font-bold text-on-primary">{{ backendStatus$ | async }}</span>
-    </p>
+<main class="min-h-screen bg-white font-sans text-ink">
+    <h1 class="px-4 pt-4 text-2xl font-bold">Work Time Log</h1>
+    <app-timer-panel />
 </main>
 <router-outlet />
