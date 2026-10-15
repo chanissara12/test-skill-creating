@@ -47,9 +47,9 @@ describe('TimetableComponent', () => {
         request.flush([wednesdayEntry(from, 1, 'Write spec', 90)]);
         await settle();
 
-        expect(page().querySelectorAll('button')).toHaveLength(1);
+        expect(page().querySelectorAll('button[title]')).toHaveLength(1);
         // The hover text carries the whole entry's title and times.
-        expect(page().querySelector('button')?.getAttribute('title')).toBe('Write spec 09:00–10:30');
+        expect(page().querySelector('button[title]')?.getAttribute('title')).toBe('Write spec 09:00–10:30');
         // 1 h 30 min, shown for that day and for the week.
         expect(page().textContent?.match(/01:30/g)).toHaveLength(2);
     });
@@ -58,14 +58,14 @@ describe('TimetableComponent', () => {
         const first = nextListRequest();
         first.flush([]);
         await settle();
-        expect(page().querySelectorAll('button')).toHaveLength(0);
+        expect(page().querySelectorAll('button[title]')).toHaveLength(0);
 
         fixture.componentInstance.reload();
         const second = nextListRequest();
         second.flush([wednesdayEntry(requestedFrom(second), 2, 'Saved after a stop', 30)]);
         await settle();
 
-        expect(page().querySelectorAll('button')).toHaveLength(1);
+        expect(page().querySelectorAll('button[title]')).toHaveLength(1);
     });
 
     it('keeps showing the last loaded week, with a message, when reloading fails', async () => {
@@ -78,8 +78,100 @@ describe('TimetableComponent', () => {
         await settle();
 
         expect(page().querySelector('[role=alert]')?.textContent).toContain('The database is down.');
-        expect(page().querySelectorAll('button')).toHaveLength(1);
+        expect(page().querySelectorAll('button[title]')).toHaveLength(1);
         expect(page().textContent?.match(/01:30/g)).toHaveLength(2);
+    });
+
+    describe('browsing weeks', () => {
+        const buttonLabelled = (label: string) =>
+            Array.from(page().querySelectorAll('button')).find((button) => button.textContent?.trim() === label) as HTMLButtonElement;
+        const entryBlocks = () => page().querySelectorAll('button[title]');
+        const shownRange = () => page().querySelector('h2')?.textContent?.replace(/\s+/g, ' ').trim();
+        const ymd = (date: Date) =>
+            [date.getFullYear(), String(date.getMonth() + 1).padStart(2, '0'), String(date.getDate()).padStart(2, '0')].join('-');
+        const daysFrom = (date: Date, days: number) => new Date(date.getFullYear(), date.getMonth(), date.getDate() + days);
+
+        it('moves one week back and forward, asking the API for that week and showing its entries and date range', async () => {
+            const current = nextListRequest();
+            const currentFrom = requestedFrom(current);
+            current.flush([]);
+            await settle();
+
+            buttonLabelled('สัปดาห์ก่อน').click();
+            const previous = nextListRequest();
+            const previousFrom = requestedFrom(previous);
+            expect(previousFrom).toEqual(daysFrom(currentFrom, -7));
+            expect(new Date(previous.request.params.get('toUtc') as string)).toEqual(currentFrom);
+            previous.flush([wednesdayEntry(previousFrom, 1, 'Last week', 60)]);
+            await settle();
+
+            expect(shownRange()).toBe(`${ymd(previousFrom)} – ${ymd(daysFrom(previousFrom, 6))}`);
+            expect(entryBlocks()).toHaveLength(1);
+
+            buttonLabelled('สัปดาห์ถัดไป').click();
+            const forward = nextListRequest();
+            expect(requestedFrom(forward)).toEqual(currentFrom);
+            forward.flush([]);
+            await settle();
+
+            expect(shownRange()).toBe(`${ymd(currentFrom)} – ${ymd(daysFrom(currentFrom, 6))}`);
+            expect(entryBlocks()).toHaveLength(0);
+        });
+
+        it('returns to the current week with This Week', async () => {
+            const current = nextListRequest();
+            const currentFrom = requestedFrom(current);
+            current.flush([]);
+            await settle();
+
+            buttonLabelled('สัปดาห์ถัดไป').click();
+            const next = nextListRequest();
+            expect(requestedFrom(next)).toEqual(daysFrom(currentFrom, 7));
+            next.flush([]);
+            await settle();
+
+            buttonLabelled('สัปดาห์นี้').click();
+            const back = nextListRequest();
+            expect(requestedFrom(back)).toEqual(currentFrom);
+            back.flush([wednesdayEntry(currentFrom, 2, 'This week', 30)]);
+            await settle();
+
+            expect(shownRange()).toBe(`${ymd(currentFrom)} – ${ymd(daysFrom(currentFrom, 6))}`);
+            expect(entryBlocks()).toHaveLength(1);
+        });
+
+        it('keeps the date range of the week that is on screen when loading another week fails', async () => {
+            const current = nextListRequest();
+            const currentFrom = requestedFrom(current);
+            current.flush([wednesdayEntry(currentFrom, 1, 'Write spec', 90)]);
+            await settle();
+
+            buttonLabelled('สัปดาห์ถัดไป').click();
+            nextListRequest().flush({ message: 'The database is down.' }, { status: 500, statusText: 'Server Error' });
+            await settle();
+
+            expect(shownRange()).toBe(`${ymd(currentFrom)} – ${ymd(daysFrom(currentFrom, 6))}`);
+            expect(entryBlocks()).toHaveLength(1);
+            expect(page().querySelector('[role=alert]')?.textContent).toContain('The database is down.');
+        });
+
+        it('reloads the week that is on screen, not a week whose load failed', async () => {
+            const current = nextListRequest();
+            const currentFrom = requestedFrom(current);
+            current.flush([]);
+            await settle();
+            buttonLabelled('สัปดาห์ถัดไป').click();
+            nextListRequest().flush({ message: 'The database is down.' }, { status: 500, statusText: 'Server Error' });
+            await settle();
+
+            fixture.componentInstance.reload();
+
+            const reloaded = nextListRequest();
+            expect(requestedFrom(reloaded)).toEqual(currentFrom);
+            reloaded.flush([wednesdayEntry(currentFrom, 3, 'Saved after a stop', 30)]);
+            await settle();
+            expect(entryBlocks()).toHaveLength(1);
+        });
     });
 
     it('opens scrolled so the current time is in view, a little way in from the left edge', async () => {

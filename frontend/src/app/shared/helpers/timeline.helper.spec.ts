@@ -64,6 +64,18 @@ describe('buildWeekTimetable', () => {
         expect(week.totalMs).toBe(7_200_000);
     });
 
+    it('splits an entry that crosses midnight at the end of the week, one hour in this week and one in the next', () => {
+        const crossing = [entry(1, 'Saturday night', local(17, 23), local(18, 1))];
+
+        const thisWeek = buildWeekTimetable(crossing, weekStart, now);
+        const nextWeek = buildWeekTimetable(crossing, endOfWeek(weekStart), now);
+
+        expect(thisWeek.days[6].blocks[0]).toMatchObject({ leftPx: 1288, widthPx: 56 });
+        expect([thisWeek.days[6].totalMs, thisWeek.totalMs]).toEqual([3_600_000, 3_600_000]);
+        expect(nextWeek.days[0].blocks[0]).toMatchObject({ leftPx: 0, widthPx: 56 });
+        expect([nextWeek.days[0].totalMs, nextWeek.totalMs]).toEqual([3_600_000, 3_600_000]);
+    });
+
     it('draws a running timer up to "now" and counts that time', () => {
         const week = buildWeekTimetable([entry(1, 'Working', local(14, 9), null)], weekStart, local(14, 12));
 
