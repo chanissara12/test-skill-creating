@@ -1,8 +1,9 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, computed, output, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, Signal, computed, output, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Observable, finalize, map } from 'rxjs';
 
 import { formatElapsed } from '../../../shared/helpers/duration.helper';
+import { nowEverySecond } from '../../../shared/helpers/now.helper';
 import { TimeEntry } from '../../../shared/models/time-entry.model';
 import { TimerService } from '../services/timer.service';
 
@@ -22,7 +23,7 @@ export class TimerPanelComponent implements OnInit {
     readonly running = signal<TimeEntry | undefined>(undefined);
     readonly busy = signal(false);
     readonly errorMessage = signal<string | undefined>(undefined);
-    private readonly now = signal(Date.now());
+    private readonly now: Signal<number>;
 
     // While running the box shows (and locks to) the running title; otherwise it is the user's draft.
     readonly inputValue = computed(() => this.running()?.title ?? this.draftTitle());
@@ -37,8 +38,7 @@ export class TimerPanelComponent implements OnInit {
         private readonly timerService: TimerService,
         private readonly destroyRef: DestroyRef,
     ) {
-        const tick = setInterval(() => this.now.set(Date.now()), 1000);
-        this.destroyRef.onDestroy(() => clearInterval(tick));
+        this.now = nowEverySecond(destroyRef);
     }
 
     ngOnInit(): void {
@@ -79,7 +79,6 @@ export class TimerPanelComponent implements OnInit {
             next: (running) => {
                 this.running.set(running);
                 this.draftTitle.set('');
-                this.now.set(Date.now());
                 this.entriesChanged.emit();
             },
             error: (error: Error) => {
