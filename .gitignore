@@ -93,3 +93,8 @@ packages/
 # force-added one is never mangled — but none should be committed by accident.
 *.pfx
 *.p12
+
+
+# Holds real database connection strings on each developer machine (the committed version only has logging).
+# The file is already tracked, so also run: git update-index --skip-worktree <this file>
+backend/TestSkillCreating.Server/appsettings.Development.json
