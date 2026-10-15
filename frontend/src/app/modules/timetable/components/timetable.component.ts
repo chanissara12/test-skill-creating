@@ -7,6 +7,7 @@ import {
     Signal,
     afterNextRender,
     computed,
+    effect,
     signal,
     viewChild,
 } from '@angular/core';
@@ -105,6 +106,13 @@ export class TimetableComponent {
         this.week = computed(() => buildWeekTimetable(loaded().entries, loaded().weekStart, new Date(nowMs())));
         this.selectedEntry = computed(() => loaded().entries.find((entry) => entry.id === this.selectedId()));
         this.detailsOpen = computed(() => this.selectedEntry() !== undefined);
+        // The open entry is gone after a reload (deleted in another tab): close the details and say so.
+        effect(() => {
+            if (this.selectedId() !== undefined && !this.detailsOpen()) {
+                this.errorMessage.set('รายการนี้ถูกลบไปแล้ว');
+                this.closeDetails(this.scroller().nativeElement);
+            }
+        });
         this.selectedDurationMs = computed(() => {
             const entry = this.selectedEntry();
             return entry ? (entry.stoppedAtUtc ? Date.parse(entry.stoppedAtUtc) : nowMs()) - Date.parse(entry.startedAtUtc) : 0;

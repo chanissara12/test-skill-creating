@@ -391,6 +391,19 @@ describe('TimetableComponent', () => {
             deleteRequests()[0].flush(null, { status: 204, statusText: 'No Content' });
         });
 
+        it('closes the details with a message, and puts the focus on the timetable, when the entry is gone after a reload', async () => {
+            await flushWeek([entryOnWednesday(1, 'Write spec', 90)]);
+            await openFirstBlock();
+
+            // Another tab deleted the entry; the next reload (here a Start or Stop in this tab) no longer has it.
+            fixture.componentInstance.reload();
+            await flushWeek([]);
+
+            expect(dialog()).toBeNull();
+            expect(page().querySelector('[role=alert]')?.textContent).toContain('รายการนี้ถูกลบไปแล้ว');
+            expect(document.activeElement).toBe(page().querySelector('div.overflow-auto'));
+        });
+
         it('ignores Escape while the delete is being sent', async () => {
             await flushWeek([entryOnWednesday(1, 'Write spec', 90)]);
             await openFirstBlock();
