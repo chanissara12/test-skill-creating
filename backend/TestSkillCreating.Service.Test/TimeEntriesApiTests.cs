@@ -109,6 +109,20 @@ public class TimeEntriesApiTests(ApiFixture api) : IAsyncLifetime
     }
 
     [DatabaseFact]
+    public async Task Delete_of_the_same_entry_twice_at_once_removes_it_once_and_answers_not_found_to_the_other()
+    {
+        var id = await api.SeedAsync("Finished", At(8), At(9));
+
+        var responses = await Task.WhenAll(
+            _client.DeleteAsync($"/api/time-entries/{id}"),
+            _client.DeleteAsync($"/api/time-entries/{id}"));
+
+        Assert.Equal(
+            [HttpStatusCode.NoContent, HttpStatusCode.NotFound],
+            responses.Select(r => r.StatusCode).OrderBy(code => (int)code));
+    }
+
+    [DatabaseFact]
     public async Task List_rejects_a_request_without_a_range_with_a_message()
     {
         var response = await _client.GetAsync("/api/time-entries");

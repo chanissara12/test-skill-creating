@@ -25,15 +25,16 @@ public class TimeEntryService(TimeLogDbContext db) : ITimeEntryService
 
     public async Task DeleteAsync(long id)
     {
-        var entry = await db.TimeEntries.FindAsync(id)
-            ?? throw new NotFoundException("This entry does not exist.");
-
-        if (entry.StoppedAtUtc is null)
+        // Note: a single statement, so two deletes at once cannot both succeed and a running entry is never matched.
+        var deleted = await db.TimeEntries.Where(e => e.Id == id && e.StoppedAtUtc != null).ExecuteDeleteAsync();
+        if (deleted > 0)
         {
-            throw new ConflictException("The running timer cannot be deleted. Stop it first.");
+            return;
         }
 
-        db.TimeEntries.Remove(entry);
-        await db.SaveChangesAsync();
+        var exists = await db.TimeEntries.AnyAsync(e => e.Id == id);
+        throw exists
+            ? new ConflictException("The running timer cannot be deleted. Stop it first.")
+            : new NotFoundException("This entry does not exist.");
     }
 }
