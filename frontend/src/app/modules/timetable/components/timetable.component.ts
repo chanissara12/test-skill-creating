@@ -60,8 +60,10 @@ export class TimetableComponent {
     readonly deleting = signal(false);
     readonly deleteError = signal<string | undefined>(undefined);
 
-    // The first day of the week to load. The week on screen (weekFirstDay) only changes once that week has loaded.
-    private readonly weekRequests = new BehaviorSubject(startOfWeek(new Date()));
+    // The week being opened. It is what the buttons step from and what a reload loads; it goes back to the week on screen
+    // when that week fails to load.
+    private readonly requestedWeekFirstDay = signal(startOfWeek(new Date()));
+    private readonly weekRequests = new BehaviorSubject(this.requestedWeekFirstDay());
     private readonly selectedId = signal<number | undefined>(undefined);
     private readonly scroller = viewChild.required<ElementRef<HTMLElement>>('scroller');
     private readonly details = viewChild<ElementRef<HTMLElement>>('details');
@@ -87,6 +89,7 @@ export class TimetableComponent {
                         catchError((error: Error) => {
                             this.errorMessage.set(error.message);
                             this.loading.set(false);
+                            this.requestedWeekFirstDay.set(loaded().weekStart);
                             return EMPTY;
                         }),
                     ),
@@ -94,11 +97,12 @@ export class TimetableComponent {
             ),
             { initialValue: { weekStart: this.weekRequests.value, entries: [] as TimeEntry[] } },
         );
-        this.weekFirstDay = computed(() => loaded().weekStart);
+        // While another week loads, the header already shows that week (its rows are a skeleton, not the old week's).
+        this.weekFirstDay = computed(() => (this.loading() ? this.requestedWeekFirstDay() : loaded().weekStart));
         this.weekLastDay = computed(() => addDays(this.weekFirstDay(), 6));
         // "Now" moves every second, so running blocks, totals and the current-time marker all move with it.
         const nowMs = nowEverySecond(destroyRef);
-        this.week = computed(() => buildWeekTimetable(loaded().entries, this.weekFirstDay(), new Date(nowMs())));
+        this.week = computed(() => buildWeekTimetable(loaded().entries, loaded().weekStart, new Date(nowMs())));
         this.selectedEntry = computed(() => loaded().entries.find((entry) => entry.id === this.selectedId()));
         this.detailsOpen = computed(() => this.selectedEntry() !== undefined);
         this.selectedDurationMs = computed(() => {
@@ -115,18 +119,21 @@ export class TimetableComponent {
 
     // Loads the week again (called after the timer panel saved a Start or Stop).
     reload(): void {
-        this.weekRequests.next(this.weekFirstDay());
+        this.weekRequests.next(this.requestedWeekFirstDay());
     }
 
-    // Moves from the week on screen, so a failed load never leaves the buttons stepping from a week that is not shown.
     showWeekOffset(weeks: number): void {
-        this.loading.set(true);
-        this.weekRequests.next(addDays(this.weekFirstDay(), weeks * 7));
+        this.openWeek(addDays(this.requestedWeekFirstDay(), weeks * 7));
     }
 
     showThisWeek(): void {
+        this.openWeek(startOfWeek(new Date()));
+    }
+
+    private openWeek(weekFirstDay: Date): void {
         this.loading.set(true);
-        this.weekRequests.next(startOfWeek(new Date()));
+        this.requestedWeekFirstDay.set(weekFirstDay);
+        this.weekRequests.next(weekFirstDay);
     }
 
     openDetails(entry: TimeEntry, event: Event): void {

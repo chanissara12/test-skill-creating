@@ -155,6 +155,66 @@ describe('TimetableComponent', () => {
             expect(page().querySelector('[role=alert]')?.textContent).toContain('The database is down.');
         });
 
+        const headerTotal = () => page().querySelector('section p')?.textContent?.replace(/\s+/g, ' ').trim();
+
+        it('shows the range of the week that is loading, with no total yet, instead of the previous week', async () => {
+            const current = nextListRequest();
+            const currentFrom = requestedFrom(current);
+            current.flush([]);
+            await settle();
+            expect(headerTotal()).toBe('รวมสัปดาห์ 00:00');
+
+            buttonLabelled('สัปดาห์ถัดไป').click();
+            fixture.detectChanges();
+            const nextFrom = daysFrom(currentFrom, 7);
+            expect(shownRange()).toBe(`${ymd(nextFrom)} – ${ymd(daysFrom(nextFrom, 6))}`);
+            expect(headerTotal()).toBe('รวมสัปดาห์ –');
+
+            nextListRequest().flush([]);
+            await settle();
+            expect(headerTotal()).toBe('รวมสัปดาห์ 00:00');
+        });
+
+        it('goes a second week ahead when Next is pressed again before the first week has arrived', async () => {
+            const current = nextListRequest();
+            const currentFrom = requestedFrom(current);
+            current.flush([]);
+            await settle();
+
+            buttonLabelled('สัปดาห์ถัดไป').click();
+            buttonLabelled('สัปดาห์ถัดไป').click();
+
+            const requests = http.match((req) => req.url.endsWith('/time-entries'));
+            expect(requestedFrom(requests[requests.length - 1])).toEqual(daysFrom(currentFrom, 14));
+        });
+
+        it('keeps loading the week being opened when the timetable is reloaded meanwhile', async () => {
+            const current = nextListRequest();
+            const currentFrom = requestedFrom(current);
+            current.flush([]);
+            await settle();
+            buttonLabelled('สัปดาห์ถัดไป').click();
+
+            fixture.componentInstance.reload();
+
+            const requests = http.match((req) => req.url.endsWith('/time-entries'));
+            expect(requestedFrom(requests[requests.length - 1])).toEqual(daysFrom(currentFrom, 7));
+        });
+
+        it('steps from the week that is on screen after a week failed to load', async () => {
+            const current = nextListRequest();
+            const currentFrom = requestedFrom(current);
+            current.flush([]);
+            await settle();
+            buttonLabelled('สัปดาห์ถัดไป').click();
+            nextListRequest().flush({ message: 'The database is down.' }, { status: 500, statusText: 'Server Error' });
+            await settle();
+
+            buttonLabelled('สัปดาห์ถัดไป').click();
+
+            expect(requestedFrom(nextListRequest())).toEqual(daysFrom(currentFrom, 7));
+        });
+
         it('reloads the week that is on screen, not a week whose load failed', async () => {
             const current = nextListRequest();
             const currentFrom = requestedFrom(current);

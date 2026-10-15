@@ -12,12 +12,12 @@ describe('errorMessageOf', () => {
     it('explains that the server cannot be reached when there is no response', () => {
         const error = new HttpErrorResponse({ status: 0, error: new ProgressEvent('error') });
 
-        expect(errorMessageOf(error)).toBe('Cannot reach the server. Is the backend running?');
+        expect(errorMessageOf(error)).toBe('เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ ตรวจสอบว่า backend ทำงานอยู่หรือไม่');
     });
 
     it('falls back to a generic message when the API sent no message', () => {
         const error = new HttpErrorResponse({ status: 500, error: 'boom' });
 
-        expect(errorMessageOf(error)).toBe('Something went wrong. Please try again.');
+        expect(errorMessageOf(error)).toBe('เกิดข้อผิดพลาด ลองใหม่อีกครั้ง');
     });
 });

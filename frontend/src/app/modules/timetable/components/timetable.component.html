@@ -13,7 +13,7 @@
         </div>
         <p class="text-sm text-ink-mute">
             รวมสัปดาห์
-            <span class="text-base font-bold text-ink tabular-nums">{{ formatTotal(week().totalMs) }}</span>
+            <span class="text-base font-bold text-ink tabular-nums">{{ loading() ? '–' : formatTotal(week().totalMs) }}</span>
         </p>
     </div>
     @if (errorMessage(); as message) {
@@ -59,7 +59,7 @@
                             class="sticky left-0 z-20 w-28 shrink-0 border-r border-hairline px-2 py-2"
                             [class]="isToday ? 'bg-lavender' : 'bg-white'"
                         >
-                            <div class="text-sm font-bold" [class]="isToday ? 'text-primary' : 'text-ink'">
+                            <div class="text-sm font-bold text-ink">
                                 {{ weekdayLabel(row.day) }} {{ row.day | date: 'MM-dd' }}
                             </div>
                             <div class="text-xs text-ink-mute tabular-nums">{{ formatTotal(row.totalMs) }}</div>
