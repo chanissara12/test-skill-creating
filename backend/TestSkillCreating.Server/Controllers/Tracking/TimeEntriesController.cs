@@ -16,4 +16,11 @@ public class TimeEntriesController(ITimeEntryService timeEntryService) : Control
     public async Task<IReadOnlyList<TimeEntryViewModel>> List(
         [BindRequired] DateTimeOffset fromUtc, [BindRequired] DateTimeOffset toUtc) =>
         await timeEntryService.ListAsync(fromUtc.UtcDateTime, toUtc.UtcDateTime);
+
+    [HttpDelete("{id:long}")]
+    public async Task<NoContentResult> Delete(long id)
+    {
+        await timeEntryService.DeleteAsync(id);
+        return NoContent();
+    }
 }

@@ -76,6 +76,39 @@ public class TimeEntriesApiTests(ApiFixture api) : IAsyncLifetime
     }
 
     [DatabaseFact]
+    public async Task Delete_removes_a_finished_entry()
+    {
+        var id = await api.SeedAsync("Finished", At(8), At(9));
+        await api.SeedAsync("Other", At(10), At(11));
+
+        var response = await _client.DeleteAsync($"/api/time-entries/{id}");
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        Assert.Equal(["Other"], await ListTitlesAsync(At(0), At(24)));
+    }
+
+    [DatabaseFact]
+    public async Task Delete_refuses_the_running_timer_with_a_message_and_keeps_it()
+    {
+        var id = await api.SeedAsync("Running", At(8), null);
+
+        var response = await _client.DeleteAsync($"/api/time-entries/{id}");
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        await ApiAssert.HasMessageAsync(response);
+        Assert.Equal(["Running"], await ListTitlesAsync(At(0), At(24)));
+    }
+
+    [DatabaseFact]
+    public async Task Delete_answers_not_found_with_a_message_for_an_entry_that_does_not_exist()
+    {
+        var response = await _client.DeleteAsync("/api/time-entries/987654321");
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        await ApiAssert.HasMessageAsync(response);
+    }
+
+    [DatabaseFact]
     public async Task List_rejects_a_request_without_a_range_with_a_message()
     {
         var response = await _client.GetAsync("/api/time-entries");

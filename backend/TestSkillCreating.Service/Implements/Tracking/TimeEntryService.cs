@@ -22,4 +22,18 @@ public class TimeEntryService(TimeLogDbContext db) : ITimeEntryService
             .Select(e => new TimeEntryViewModel(e.Id, e.Title, e.StartedAtUtc, e.StoppedAtUtc))
             .ToListAsync();
     }
+
+    public async Task DeleteAsync(long id)
+    {
+        var entry = await db.TimeEntries.FindAsync(id)
+            ?? throw new NotFoundException("This entry does not exist.");
+
+        if (entry.StoppedAtUtc is null)
+        {
+            throw new ConflictException("The running timer cannot be deleted. Stop it first.");
+        }
+
+        db.TimeEntries.Remove(entry);
+        await db.SaveChangesAsync();
+    }
 }

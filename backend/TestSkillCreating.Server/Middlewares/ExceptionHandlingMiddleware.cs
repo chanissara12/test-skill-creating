@@ -16,6 +16,10 @@ public class ExceptionHandlingMiddleware(RequestDelegate next, ILogger<Exception
         {
             await WriteAsync(context, StatusCodes.Status409Conflict, ex.Message);
         }
+        catch (NotFoundException ex)
+        {
+            await WriteAsync(context, StatusCodes.Status404NotFound, ex.Message);
+        }
         catch (ValidateException ex)
         {
             await WriteAsync(context, StatusCodes.Status400BadRequest, ex.Message);

@@ -20,12 +20,14 @@ public sealed class ApiFixture : WebApplicationFactory<Program>
             new Dictionary<string, string?> { ["ConnectionStrings:Default"] = DatabaseFactAttribute.ConnectionString }));
 
     // Arrange helper: the API only creates entries at "now", so entries at chosen times are inserted directly.
-    public async Task SeedAsync(string title, DateTime startedAtUtc, DateTime? stoppedAtUtc)
+    public async Task<long> SeedAsync(string title, DateTime startedAtUtc, DateTime? stoppedAtUtc)
     {
         using var scope = Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<TimeLogDbContext>();
-        db.TimeEntries.Add(new TimeEntry { Title = title, StartedAtUtc = startedAtUtc, StoppedAtUtc = stoppedAtUtc });
+        var entry = new TimeEntry { Title = title, StartedAtUtc = startedAtUtc, StoppedAtUtc = stoppedAtUtc };
+        db.TimeEntries.Add(entry);
         await db.SaveChangesAsync();
+        return entry.Id;
     }
 
     public async Task ResetDatabaseAsync()
