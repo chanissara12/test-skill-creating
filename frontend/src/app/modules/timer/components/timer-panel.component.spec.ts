@@ -92,4 +92,45 @@ describe('TimerPanelComponent', () => {
         await settle();
         expect(button.querySelector('.animate-spin')).toBeNull();
     });
+
+    it('shows a skeleton instead of the controls until the server has said whether a timer is running', async () => {
+        expect(page().querySelector('[role=status]')).not.toBeNull();
+        expect(page().querySelector('input')).toBeNull();
+
+        http.expectOne((req) => req.url.endsWith('/timer/running')).flush(null);
+        await settle();
+
+        expect(page().querySelector('[role=status]')).toBeNull();
+        expect(page().querySelector('input')).not.toBeNull();
+    });
+
+    it('shows the controls again, with a message, when the first answer cannot be fetched', async () => {
+        http.expectOne((req) => req.url.endsWith('/timer/running')).error(new ProgressEvent('error'));
+        await settle();
+
+        expect(page().querySelector('[role=status]')).toBeNull();
+        expect(page().querySelector('[role=alert]')?.textContent).toContain('เชื่อมต่อเซิร์ฟเวอร์ไม่ได้');
+    });
+
+    it('asks the server again after a failed stop whose answer was lost, so the panel does not stay on "running"', async () => {
+        http.expectOne((req) => req.url.endsWith('/timer/running')).flush(runningEntry);
+        await settle();
+        jest.useFakeTimers();
+        try {
+            (page().querySelector('button') as HTMLButtonElement).click();
+            http.expectOne((req) => req.url.endsWith('/timer/stop')).error(new ProgressEvent('error'));
+            // The first re-read fails as well: the server is still unreachable.
+            http.expectOne((req) => req.url.endsWith('/timer/running')).error(new ProgressEvent('error'));
+            http.expectNone((req) => req.url.endsWith('/timer/running'));
+
+            jest.advanceTimersByTime(3_000);
+            // The server did stop the timer; only its answer was lost.
+            http.expectOne((req) => req.url.endsWith('/timer/running')).flush(null);
+            fixture.detectChanges();
+
+            expect(page().querySelector('button')?.textContent).toContain('เริ่ม');
+        } finally {
+            jest.useRealTimers();
+        }
+    });
 });

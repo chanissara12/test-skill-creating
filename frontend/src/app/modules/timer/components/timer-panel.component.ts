@@ -1,11 +1,14 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, Signal, computed, output, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { Observable, finalize, map } from 'rxjs';
+import { Observable, finalize, map, retry } from 'rxjs';
 
 import { formatElapsed } from '../../../shared/helpers/duration.helper';
 import { nowEverySecond } from '../../../shared/helpers/now.helper';
 import { TimeEntry } from '../../../shared/models/time-entry.model';
 import { TimerService } from '../services/timer.service';
+
+// Note: after a failed action the server may be unreachable too, so the re-read is retried a few times to catch up quietly.
+const RESYNC_RETRY = { count: 3, delay: 3_000 };
 
 @Component({
     selector: 'app-timer-panel',
@@ -22,6 +25,8 @@ export class TimerPanelComponent implements OnInit {
     readonly draftTitle = signal('');
     readonly running = signal<TimeEntry | undefined>(undefined);
     readonly busy = signal(false);
+    // True until the server has answered whether a timer is already running (the controls are a skeleton until then).
+    readonly loadingRunning = signal(true);
     readonly errorMessage = signal<string | undefined>(undefined);
     private readonly now: Signal<number>;
 
@@ -49,12 +54,16 @@ export class TimerPanelComponent implements OnInit {
     // Asks the server what is really running. After a failed action the panel may be out of date
     // (e.g. another tab already stopped the timer), so the error is shown and the state is re-read.
     private refreshRunning(reportErrors: boolean): void {
-        this.timerService
-            .getRunning()
+        const running$ = this.timerService.getRunning();
+        (reportErrors ? running$ : running$.pipe(retry(RESYNC_RETRY)))
             .pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe({
-                next: (entry) => this.running.set(entry),
+                next: (entry) => {
+                    this.running.set(entry);
+                    this.loadingRunning.set(false);
+                },
                 error: (error: Error) => {
+                    this.loadingRunning.set(false);
                     if (reportErrors) {
                         this.errorMessage.set(error.message);
                     }
