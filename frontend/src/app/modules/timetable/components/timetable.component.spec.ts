@@ -174,6 +174,164 @@ describe('TimetableComponent', () => {
         });
     });
 
+    describe('entry details and delete', () => {
+        const dialog = () => page().querySelector('[role=dialog]') as HTMLElement | null;
+        const dialogButton = (label: string) =>
+            Array.from(dialog()?.querySelectorAll('button') ?? []).find((button) => button.textContent?.trim() === label);
+        const click = async (label: string) => {
+            (dialogButton(label) as HTMLButtonElement).click();
+            await settle();
+        };
+        const openFirstBlock = async () => {
+            (page().querySelector('button[title]') as HTMLButtonElement).click();
+            await settle();
+        };
+        const flushWeek = async (entries: object[]) => {
+            nextListRequest().flush(entries);
+            await settle();
+        };
+        const deleteRequests = () => http.match((req) => req.method === 'DELETE');
+        // 09:00 on the Wednesday of the current week, for the given number of minutes (running when minutes is undefined).
+        const entryOnWednesday = (id: number, title: string, minutes?: number) => {
+            const week = new Date();
+            const start = new Date(week.getFullYear(), week.getMonth(), week.getDate() - week.getDay() + 3, 9);
+            return {
+                id,
+                title,
+                startedAtUtc: start.toISOString(),
+                stoppedAtUtc: minutes === undefined ? null : new Date(start.getTime() + minutes * 60_000).toISOString(),
+            };
+        };
+
+        it('opens the details of a clicked block: full title, start, stop and duration', async () => {
+            await flushWeek([entryOnWednesday(1, 'Write spec', 90)]);
+
+            await openFirstBlock();
+
+            const text = dialog()?.textContent ?? '';
+            expect(text).toContain('Write spec');
+            expect(text).toMatch(/\d{4}-\d{2}-\d{2} 09:00:00/);
+            expect(text).toMatch(/\d{4}-\d{2}-\d{2} 10:30:00/);
+            expect(text).toContain('01:30:00');
+        });
+
+        it('shows a running timer as running and offers no way to delete it', async () => {
+            await flushWeek([entryOnWednesday(1, 'Working', undefined)]);
+
+            await openFirstBlock();
+
+            expect(dialog()?.textContent).toContain('กำลังเดิน');
+            expect(dialogButton('ลบ')).toBeUndefined();
+        });
+
+        it('asks for confirmation before deleting, and cancelling leaves the entry untouched', async () => {
+            await flushWeek([entryOnWednesday(1, 'Write spec', 90)]);
+            await openFirstBlock();
+
+            await click('ลบ');
+            expect(deleteRequests()).toHaveLength(0);
+            expect(dialogButton('ยืนยันลบ')).toBeDefined();
+
+            await click('ยกเลิก');
+            expect(deleteRequests()).toHaveLength(0);
+            expect(dialogButton('ยืนยันลบ')).toBeUndefined();
+            expect(dialog()?.textContent).toContain('Write spec');
+            expect(page().querySelectorAll('button[title]')).toHaveLength(1);
+        });
+
+        it('deletes a finished entry after confirmation, closes the details and reloads the week with new totals', async () => {
+            await flushWeek([entryOnWednesday(7, 'Write spec', 90), entryOnWednesday(8, 'Review', 15)]);
+            // 1 h 30 min and 15 min on the same day: 01:45 for the day and for the week (the hour labels only ever end in :00).
+            expect(page().textContent?.match(/01:45/g)).toHaveLength(2);
+            await openFirstBlock();
+            await click('ลบ');
+
+            await click('ยืนยันลบ');
+            const [request] = deleteRequests();
+            expect(request.request.url.endsWith('/time-entries/7')).toBe(true);
+            request.flush(null, { status: 204, statusText: 'No Content' });
+            await settle();
+            await flushWeek([entryOnWednesday(8, 'Review', 15)]);
+
+            expect(dialog()).toBeNull();
+            expect(page().querySelectorAll('button[title]')).toHaveLength(1);
+            expect(page().textContent?.match(/00:15/g)).toHaveLength(2);
+            expect(page().textContent).not.toContain('01:45');
+            expect(page().textContent).not.toContain('01:30');
+            // The deleted block is gone, so the focus goes to the timetable instead of falling to the page.
+            expect(document.activeElement).toBe(page().querySelector('div.overflow-auto'));
+        });
+
+        it('shows the API message and keeps the entry when the delete is refused', async () => {
+            await flushWeek([entryOnWednesday(7, 'Write spec', 90)]);
+            await openFirstBlock();
+            await click('ลบ');
+            await click('ยืนยันลบ');
+
+            deleteRequests()[0].flush({ message: 'Refused for a reason.' }, { status: 409, statusText: 'Conflict' });
+            await settle();
+            await flushWeek([entryOnWednesday(7, 'Write spec', 90)]);
+
+            expect(dialog()?.querySelector('[role=alert]')?.textContent).toContain('Refused for a reason.');
+            expect(page().querySelectorAll('button[title]')).toHaveLength(1);
+        });
+
+        it('reloads the week when the entry was already deleted (404), so the stale block disappears', async () => {
+            await flushWeek([entryOnWednesday(7, 'Write spec', 90)]);
+            await openFirstBlock();
+            await click('ลบ');
+            await click('ยืนยันลบ');
+
+            deleteRequests()[0].flush({ message: 'This entry does not exist.' }, { status: 404, statusText: 'Not Found' });
+            await settle();
+            await flushWeek([]);
+
+            expect(page().querySelectorAll('button[title]')).toHaveLength(0);
+            expect(dialog()).toBeNull();
+        });
+
+        it('moves the focus into the details, keeps it there when switching to the confirmation, and closes with Escape', async () => {
+            await flushWeek([entryOnWednesday(1, 'Write spec', 90)]);
+
+            await openFirstBlock();
+            expect(document.activeElement).toBe(dialog());
+
+            await click('ลบ');
+            expect(dialog()?.contains(document.activeElement)).toBe(true);
+            document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+            await settle();
+
+            expect(dialog()).toBeNull();
+        });
+
+        it('returns the focus to the block that opened the details when they close', async () => {
+            await flushWeek([entryOnWednesday(1, 'Write spec', 90)]);
+            const block = page().querySelector('button[title]') as HTMLButtonElement;
+
+            await openFirstBlock();
+            await click('ปิด');
+            expect(document.activeElement).toBe(block);
+
+            await openFirstBlock();
+            document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+            await settle();
+            expect(document.activeElement).toBe(block);
+        });
+
+        it('ignores Escape while the delete is being sent', async () => {
+            await flushWeek([entryOnWednesday(1, 'Write spec', 90)]);
+            await openFirstBlock();
+            await click('ลบ');
+            await click('ยืนยันลบ');
+
+            document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+            await settle();
+
+            expect(dialog()).not.toBeNull();
+            deleteRequests()[0].flush(null, { status: 204, statusText: 'No Content' });
+        });
+    });
+
     it('opens scrolled so the current time is in view, a little way in from the left edge', async () => {
         nextListRequest().flush([]);
         await settle();

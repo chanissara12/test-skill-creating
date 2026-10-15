@@ -1,8 +1,19 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, Signal, afterNextRender, computed, signal, viewChild } from '@angular/core';
-import { toSignal } from '@angular/core/rxjs-interop';
+import {
+    ChangeDetectionStrategy,
+    Component,
+    DestroyRef,
+    ElementRef,
+    Injector,
+    Signal,
+    afterNextRender,
+    computed,
+    signal,
+    viewChild,
+} from '@angular/core';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { BehaviorSubject, EMPTY, catchError, map, switchMap, tap } from 'rxjs';
 
-import { formatHoursMinutes } from '../../../shared/helpers/duration.helper';
+import { formatElapsed, formatHoursMinutes } from '../../../shared/helpers/duration.helper';
 import { nowEverySecond } from '../../../shared/helpers/now.helper';
 import {
     TimetableBlock,
@@ -26,20 +37,38 @@ const SCROLL_LEAD_PX = 300;
     templateUrl: './timetable.component.html',
     changeDetection: ChangeDetectionStrategy.OnPush,
     standalone: false,
+    host: { '(document:keydown.escape)': 'closeOnEscape()' },
 })
 export class TimetableComponent {
     readonly hours = Array.from({ length: 24 }, (_, hour) => hour);
     readonly formatTotal = formatHoursMinutes;
+    readonly formatElapsed = formatElapsed;
     readonly weekFirstDay: Signal<Date>;
     readonly weekLastDay: Signal<Date>;
     readonly errorMessage = signal<string | undefined>(undefined);
     readonly week: Signal<WeekTimetable>;
+    // The entry whose details are open, looked up by id so it follows reloads (e.g. a timer stopped meanwhile).
+    readonly selectedEntry: Signal<TimeEntry | undefined>;
+    readonly selectedDurationMs: Signal<number>;
+    // The app uses this to put the rest of the page out of reach while the details are open.
+    readonly detailsOpen: Signal<boolean>;
+    readonly confirmingDelete = signal(false);
+    readonly deleting = signal(false);
+    readonly deleteError = signal<string | undefined>(undefined);
 
     // The first day of the week to load. The week on screen (weekFirstDay) only changes once that week has loaded.
     private readonly weekRequests = new BehaviorSubject(startOfWeek(new Date()));
+    private readonly selectedId = signal<number | undefined>(undefined);
     private readonly scroller = viewChild.required<ElementRef<HTMLElement>>('scroller');
+    private readonly details = viewChild<ElementRef<HTMLElement>>('details');
+    // The block that opened the details, so the keyboard focus can go back to it.
+    private opener: HTMLElement | undefined;
 
-    constructor(timeEntriesService: TimeEntriesService, destroyRef: DestroyRef) {
+    constructor(
+        private readonly timeEntriesService: TimeEntriesService,
+        private readonly destroyRef: DestroyRef,
+        private readonly injector: Injector,
+    ) {
         // A new request replaces one that is still in flight (switchMap), so a slow answer never overwrites a newer one.
         // When a request fails, the message is shown and the last loaded week stays on screen (EMPTY adds no new value).
         const loaded = toSignal(
@@ -62,6 +91,12 @@ export class TimetableComponent {
         // "Now" moves every second, so running blocks, totals and the current-time marker all move with it.
         const nowMs = nowEverySecond(destroyRef);
         this.week = computed(() => buildWeekTimetable(loaded().entries, this.weekFirstDay(), new Date(nowMs())));
+        this.selectedEntry = computed(() => loaded().entries.find((entry) => entry.id === this.selectedId()));
+        this.detailsOpen = computed(() => this.selectedEntry() !== undefined);
+        this.selectedDurationMs = computed(() => {
+            const entry = this.selectedEntry();
+            return entry ? (entry.stoppedAtUtc ? Date.parse(entry.stoppedAtUtc) : nowMs()) - Date.parse(entry.startedAtUtc) : 0;
+        });
 
         // Open near the current time of day instead of at midnight.
         afterNextRender(() => {
@@ -82,6 +117,53 @@ export class TimetableComponent {
 
     showThisWeek(): void {
         this.weekRequests.next(startOfWeek(new Date()));
+    }
+
+    openDetails(entry: TimeEntry, event: Event): void {
+        this.opener = event.currentTarget as HTMLElement;
+        this.confirmingDelete.set(false);
+        this.deleteError.set(undefined);
+        this.selectedId.set(entry.id);
+        afterNextRender(() => this.details()?.nativeElement.focus(), { injector: this.injector });
+    }
+
+    // Escape closes the details, but not while the delete is being sent.
+    closeOnEscape(): void {
+        if (this.detailsOpen() && !this.deleting()) {
+            this.closeDetails();
+        }
+    }
+
+    // The button that was focused disappears in the swap, so the focus is put back on the details to keep the keyboard inside.
+    setConfirmingDelete(confirming: boolean): void {
+        this.confirmingDelete.set(confirming);
+        afterNextRender(() => this.details()?.nativeElement.focus(), { injector: this.injector });
+    }
+
+    closeDetails(focusTarget: HTMLElement | undefined = this.opener): void {
+        this.selectedId.set(undefined);
+        afterNextRender(() => focusTarget?.focus(), { injector: this.injector });
+    }
+
+    // The week loads again after a delete, refused or not: it updates the block and totals, and drops an entry that is already gone.
+    // The deleted block disappears, so the focus goes to the timetable instead of back to it.
+    confirmDelete(entry: TimeEntry): void {
+        this.deleting.set(true);
+        this.timeEntriesService
+            .delete(entry.id)
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe({
+                next: () => {
+                    this.deleting.set(false);
+                    this.closeDetails(this.scroller().nativeElement);
+                    this.reload();
+                },
+                error: (error: Error) => {
+                    this.deleting.set(false);
+                    this.deleteError.set(error.message);
+                    this.reload();
+                },
+            });
     }
 
     weekdayLabel(day: Date): string {

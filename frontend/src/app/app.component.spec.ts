@@ -50,4 +50,20 @@ describe('AppComponent', () => {
 
         expect(listRequests()).toHaveLength(1);
     });
+
+    it('makes the timer panel unreachable while the details of an entry are open', async () => {
+        http.expectOne((req) => req.url.endsWith('/timer/running')).flush(null);
+        const start = new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate(), 0, 10);
+        listRequests().forEach((request) =>
+            request.flush([{ id: 1, title: 'Work', startedAtUtc: start.toISOString(), stoppedAtUtc: new Date(start.getTime() + 600_000).toISOString() }]),
+        );
+        await settle();
+        const panel = page().querySelector('app-timer-panel') as HTMLElement;
+        expect(panel.hasAttribute('inert')).toBe(false);
+
+        (page().querySelector('app-timetable button[title]') as HTMLButtonElement).click();
+        await settle();
+
+        expect(panel.hasAttribute('inert')).toBe(true);
+    });
 });

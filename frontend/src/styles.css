@@ -15,6 +15,8 @@
     --color-lavender: #f9f0ff;
     --color-hairline: #e6e6e6;
     --color-err: #cc4117;
+    /* Darker error shade for hover/active, so white text and error-coloured text stay at WCAG AA contrast (>= 4.5:1). */
+    --color-err-press: #a8350f;
     --color-ok: #007a5a;
     --color-mute: #d9bdde;
 

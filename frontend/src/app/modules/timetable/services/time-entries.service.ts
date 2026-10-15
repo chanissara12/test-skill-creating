@@ -15,4 +15,9 @@ export class TimeEntriesService {
         const params = new HttpParams().set('fromUtc', from.toISOString()).set('toUtc', to.toISOString());
         return this.http.get<TimeEntry[]>(`${API_BASE_URL}/time-entries`, { params }).pipe(catchError(failWithMessage));
     }
+
+    // Only a finished entry can be deleted; the API refuses the Running Timer with a message.
+    delete(id: number): Observable<void> {
+        return this.http.delete<void>(`${API_BASE_URL}/time-entries/${id}`).pipe(catchError(failWithMessage));
+    }
 }

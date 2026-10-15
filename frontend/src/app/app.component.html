@@ -1,7 +1,8 @@
 <main class="min-h-screen bg-white font-sans text-ink">
     <h1 class="px-4 pt-4 text-2xl font-bold">Work Time Log</h1>
     <!-- A saved Start or Stop makes the timetable load the week again. -->
-    <app-timer-panel (entriesChanged)="timetable.reload()" />
+    <!-- While an entry's details are open, the timer panel cannot be reached by keyboard either (native inert). -->
+    <app-timer-panel (entriesChanged)="timetable.reload()" [attr.inert]="timetable.detailsOpen() ? '' : null" />
     <app-timetable #timetable />
 </main>
 <router-outlet />
