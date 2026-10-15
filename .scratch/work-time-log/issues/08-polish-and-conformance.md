@@ -6,9 +6,10 @@
 
 **Status:** ready-for-agent
 
-- [ ] No hand-written CSS rules or inline styles; DESIGN.md tokens are consumed as Tailwind utilities only
+- [ ] No hand-written CSS rules or inline styles, except the computed block and marker positions on the timetable (each documented with a `Note:` comment); DESIGN.md tokens are consumed as Tailwind utilities only
 - [ ] Every interactive element has hover, focus, active and disabled states and keyboard access
 - [ ] Contrast meets WCAG 2.1 AA on all text and controls
+- [ ] A running block is told apart from finished blocks by more than its dashed outline (a shape-only cue): for example screen-reader text or an `aria-label` that says it is running
 - [ ] The timetable shows a skeleton while loading; Start / Stop / Delete show a spinner while in flight
 - [ ] An unreachable server or failed request produces a clear message and leaves the UI usable
 - [ ] Root Definition of Done holds: build, tests and format checks pass, no unrelated changes, no unnecessary files

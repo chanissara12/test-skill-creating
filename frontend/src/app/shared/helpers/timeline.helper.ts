@@ -11,6 +11,8 @@ export interface TimetableBlock {
 
 export interface DayRow {
     day: Date;
+    // Where the current time falls on this day's axis. Only today's row has it, so it also tells which row is today.
+    nowLeftPx?: number;
     totalMs: number;
     // Tall enough for every line of blocks (see buildDayRow).
     heightPx: number;
@@ -85,7 +87,9 @@ function buildDayRow(entries: TimeEntry[], day: Date, now: Date): DayRow {
             return { ...block, topPx: LINE_PADDING_PX + line * LINE_HEIGHT_PX, heightPx: BLOCK_HEIGHT_PX };
         });
 
-    return { day, totalMs, heightPx: Math.max(lineEnds.length, 1) * LINE_HEIGHT_PX + LINE_PADDING_PX, blocks };
+    const isToday = now.getTime() >= dayStart && now.getTime() < dayEnd;
+    const nowLeftPx = isToday ? ((now.getTime() - dayStart) / HOUR_MS) * HOUR_WIDTH_PX : undefined;
+    return { day, nowLeftPx, totalMs, heightPx: Math.max(lineEnds.length, 1) * LINE_HEIGHT_PX + LINE_PADDING_PX, blocks };
 }
 
 export function buildWeekTimetable(entries: TimeEntry[], weekStart: Date, now: Date): WeekTimetable {

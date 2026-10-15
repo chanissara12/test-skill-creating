@@ -81,4 +81,17 @@ describe('TimetableComponent', () => {
         expect(page().querySelectorAll('button')).toHaveLength(1);
         expect(page().textContent?.match(/01:30/g)).toHaveLength(2);
     });
+
+    it('opens scrolled so the current time is in view, a little way in from the left edge', async () => {
+        nextListRequest().flush([]);
+        await settle();
+
+        const now = new Date();
+        // 56 px per hour, with 300 px of the past kept in view; never scrolled past the start of the day.
+        const expected = Math.max(0, (now.getHours() + now.getMinutes() / 60) * 56 - 300);
+        const scroller = page().querySelector('div.overflow-auto') as HTMLElement;
+
+        // Within two pixels (about two minutes), in case the minute changed while the test ran.
+        expect(Math.abs(scroller.scrollLeft - expected)).toBeLessThan(2);
+    });
 });

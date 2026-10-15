@@ -176,4 +176,39 @@ describe('buildWeekTimetable', () => {
             expect(buildWeekTimetable([], weekStart, now).days[0].heightPx).toBe(64);
         });
     });
+
+    describe('today and the current time', () => {
+        it('puts the current-time marker on the row that contains "now" only, 56 px per hour from midnight', () => {
+            const week = buildWeekTimetable([], weekStart, local(14, 12));
+
+            expect(week.days.map((row) => row.nowLeftPx)).toEqual([undefined, undefined, undefined, 672, undefined, undefined, undefined]);
+        });
+
+        it('moves the marker to the next row once midnight has passed', () => {
+            const week = buildWeekTimetable([], weekStart, local(15, 0, 30));
+
+            expect(week.days.map((row) => row.nowLeftPx)).toEqual([undefined, undefined, undefined, undefined, 28, undefined, undefined]);
+        });
+    });
+
+    describe('a running timer', () => {
+        it('is cut at midnight like a finished entry when it runs past the end of its first day', () => {
+            const week = buildWeekTimetable([entry(1, 'Overnight', local(13, 23), null)], weekStart, local(14, 1));
+
+            const [tuesday, wednesday] = [week.days[2], week.days[3]];
+            expect(tuesday.blocks[0]).toMatchObject({ leftPx: 1288, widthPx: 56 });
+            expect(wednesday.blocks[0]).toMatchObject({ leftPx: 0, widthPx: 56 });
+            expect([tuesday.totalMs, wednesday.totalMs, week.totalMs]).toEqual([3_600_000, 3_600_000, 7_200_000]);
+        });
+
+        it('keeps growing the block and the totals as "now" moves on', () => {
+            const running = [entry(1, 'Working', local(14, 9), null)];
+
+            const atNoon = buildWeekTimetable(running, weekStart, local(14, 12));
+            const halfAnHourLater = buildWeekTimetable(running, weekStart, local(14, 12, 30));
+
+            expect([atNoon.days[3].blocks[0].widthPx, atNoon.totalMs]).toEqual([168, 10_800_000]);
+            expect([halfAnHourLater.days[3].blocks[0].widthPx, halfAnHourLater.totalMs]).toEqual([196, 12_600_000]);
+        });
+    });
 });

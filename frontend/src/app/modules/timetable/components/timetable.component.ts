@@ -1,10 +1,10 @@
-import { ChangeDetectionStrategy, Component, ElementRef, Signal, afterNextRender, computed, signal, viewChild } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, Signal, afterNextRender, computed, signal, viewChild } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { EMPTY, Subject, catchError, startWith, switchMap, tap } from 'rxjs';
 
 import { formatHoursMinutes } from '../../../shared/helpers/duration.helper';
+import { nowEverySecond } from '../../../shared/helpers/now.helper';
 import {
-    HOUR_WIDTH_PX,
     TimetableBlock,
     WeekTimetable,
     addDays,
@@ -35,11 +35,10 @@ export class TimetableComponent {
     readonly errorMessage = signal<string | undefined>(undefined);
     readonly week: Signal<WeekTimetable>;
 
-    private readonly now = signal(new Date());
     private readonly reloads = new Subject<void>();
     private readonly scroller = viewChild.required<ElementRef<HTMLElement>>('scroller');
 
-    constructor(timeEntriesService: TimeEntriesService) {
+    constructor(timeEntriesService: TimeEntriesService, destroyRef: DestroyRef) {
         // A new request replaces one that is still in flight (switchMap), so a slow answer never overwrites a newer one.
         // When a request fails, the message is shown and the last loaded week stays on screen (EMPTY adds no new value).
         const entries = toSignal(
@@ -54,17 +53,17 @@ export class TimetableComponent {
                         }),
                     ),
                 ),
-                tap(() => this.now.set(new Date())),
             ),
             { initialValue: [] as TimeEntry[] },
         );
-        this.week = computed(() => buildWeekTimetable(entries(), this.weekFirstDay, this.now()));
+        // "Now" moves every second, so running blocks, totals and the current-time marker all move with it.
+        const nowMs = nowEverySecond(destroyRef);
+        this.week = computed(() => buildWeekTimetable(entries(), this.weekFirstDay, new Date(nowMs())));
 
         // Open near the current time of day instead of at midnight.
         afterNextRender(() => {
-            const now = new Date();
-            const hoursIntoDay = now.getHours() + now.getMinutes() / 60;
-            this.scroller().nativeElement.scrollLeft = Math.max(0, hoursIntoDay * HOUR_WIDTH_PX - SCROLL_LEAD_PX);
+            const currentTimeLeftPx = this.week().days.find((row) => row.nowLeftPx !== undefined)?.nowLeftPx ?? 0;
+            this.scroller().nativeElement.scrollLeft = Math.max(0, currentTimeLeftPx - SCROLL_LEAD_PX);
         });
     }
 
