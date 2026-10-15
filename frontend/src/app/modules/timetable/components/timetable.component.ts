@@ -46,6 +46,10 @@ export class TimetableComponent {
     readonly weekFirstDay: Signal<Date>;
     readonly weekLastDay: Signal<Date>;
     readonly errorMessage = signal<string | undefined>(undefined);
+    // True until the week being opened has loaded (or failed): the page shows a skeleton instead of the day rows.
+    // A reload of the week already on screen (after a Start or Stop) does not set it, so the table does not flash.
+    readonly loading = signal(true);
+    readonly skeletonRows = Array.from({ length: 7 }, (_, index) => index);
     readonly week: Signal<WeekTimetable>;
     // The entry whose details are open, looked up by id so it follows reloads (e.g. a timer stopped meanwhile).
     readonly selectedEntry: Signal<TimeEntry | undefined>;
@@ -76,9 +80,13 @@ export class TimetableComponent {
                 switchMap((weekStart) =>
                     timeEntriesService.list(weekStart, endOfWeek(weekStart)).pipe(
                         map((entries) => ({ weekStart, entries })),
-                        tap(() => this.errorMessage.set(undefined)),
+                        tap(() => {
+                            this.errorMessage.set(undefined);
+                            this.loading.set(false);
+                        }),
                         catchError((error: Error) => {
                             this.errorMessage.set(error.message);
+                            this.loading.set(false);
                             return EMPTY;
                         }),
                     ),
@@ -112,10 +120,12 @@ export class TimetableComponent {
 
     // Moves from the week on screen, so a failed load never leaves the buttons stepping from a week that is not shown.
     showWeekOffset(weeks: number): void {
+        this.loading.set(true);
         this.weekRequests.next(addDays(this.weekFirstDay(), weeks * 7));
     }
 
     showThisWeek(): void {
+        this.loading.set(true);
         this.weekRequests.next(startOfWeek(new Date()));
     }
 

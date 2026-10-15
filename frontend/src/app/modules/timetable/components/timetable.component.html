@@ -22,6 +22,8 @@
     <div
             #scroller
             tabindex="0"
+            role="region"
+            aria-label="ตารางสัปดาห์"
             class="mx-4 mb-4 max-h-[70vh] overflow-auto rounded-lg border border-hairline focus:outline-none focus:ring-2 focus:ring-primary"
         >
         <div class="w-max min-w-full">
@@ -35,49 +37,66 @@
                     }
                 </div>
             </div>
-            @for (row of week().days; track row.day.getTime()) {
-                <!-- Only today's row has a current-time position. -->
-                @let isToday = row.nowLeftPx !== undefined;
-                <div class="flex border-b border-hairline last:border-b-0">
-                    <div
-                        class="sticky left-0 z-20 w-28 shrink-0 border-r border-hairline px-2 py-2"
-                        [class]="isToday ? 'bg-lavender' : 'bg-white'"
-                    >
-                        <div class="text-sm font-bold" [class]="isToday ? 'text-primary' : 'text-ink'">
-                            {{ weekdayLabel(row.day) }} {{ row.day | date: 'MM-dd' }}
+            @if (loading()) {
+                <!-- Note: stands in for the day rows while a week loads; the shapes only hint at the layout. -->
+                <div role="status" aria-label="กำลังโหลดตาราง" class="animate-pulse motion-reduce:animate-none">
+                    @for (row of skeletonRows; track row) {
+                        <div class="flex border-b border-hairline last:border-b-0">
+                            <div class="w-28 shrink-0 border-r border-hairline px-2 py-2">
+                                <div class="h-4 w-16 rounded-sm bg-hairline"></div>
+                                <div class="mt-2 h-3 w-10 rounded-sm bg-hairline"></div>
+                            </div>
+                            <div class="h-16 flex-1 bg-lavender"></div>
                         </div>
-                        <div class="text-xs text-ink-mute tabular-nums">{{ formatTotal(row.totalMs) }}</div>
-                    </div>
-                    <div class="relative flex" [style.height.px]="row.heightPx">
-                        @for (hour of hours; track hour) {
-                            <div class="w-14 shrink-0 border-l border-hairline first:border-l-0"></div>
-                        }
-                        @if (isToday) {
-                            <!-- Note: the marker's left is an inline style for the same reason as the blocks' position below: it changes every second. -->
-                            <div aria-hidden="true" class="absolute inset-y-0 z-10 border-l-2 border-ink" [style.left.px]="row.nowLeftPx"></div>
-                        }
-                        @for (block of row.blocks; track block.entry.id) {
-                            <!-- Note: position and size are bound as inline styles on purpose: they are computed per entry and per second, which Tailwind classes cannot express. -->
-                            <button
-                                type="button"
-                                [title]="blockTitle(block)"
-                                (click)="openDetails(block.entry, $event)"
-                                [style.left.px]="block.leftPx"
-                                [style.width.px]="block.widthPx"
-                                [style.top.px]="block.topPx"
-                                [style.height.px]="block.heightPx"
-                                class="absolute cursor-pointer overflow-hidden rounded-sm border-primary px-1.5 text-left text-xs leading-tight text-ink focus:outline-none focus:ring-2 focus:ring-primary"
-                                [class]="
-                                    block.entry.stoppedAtUtc === null
-                                        ? 'border-2 border-dashed bg-white hover:bg-lavender active:bg-mute/30'
-                                        : 'border-l-4 bg-lavender hover:bg-mute/30 active:bg-mute/50'
-                                "
-                            >
-                                <span class="block truncate font-bold">{{ block.entry.title }}</span>
-                            </button>
-                        }
-                    </div>
+                    }
                 </div>
+            } @else {
+                @for (row of week().days; track row.day.getTime()) {
+                    <!-- Only today's row has a current-time position. -->
+                    @let isToday = row.nowLeftPx !== undefined;
+                    <div class="flex border-b border-hairline last:border-b-0">
+                        <div
+                            class="sticky left-0 z-20 w-28 shrink-0 border-r border-hairline px-2 py-2"
+                            [class]="isToday ? 'bg-lavender' : 'bg-white'"
+                        >
+                            <div class="text-sm font-bold" [class]="isToday ? 'text-primary' : 'text-ink'">
+                                {{ weekdayLabel(row.day) }} {{ row.day | date: 'MM-dd' }}
+                            </div>
+                            <div class="text-xs text-ink-mute tabular-nums">{{ formatTotal(row.totalMs) }}</div>
+                        </div>
+                        <!-- Note: the row height is an inline style because it depends on how many lines of overlapping blocks the day needs. -->
+                        <div class="relative flex" [style.height.px]="row.heightPx">
+                            @for (hour of hours; track hour) {
+                                <div class="w-14 shrink-0 border-l border-hairline first:border-l-0"></div>
+                            }
+                            @if (isToday) {
+                                <!-- Note: the marker's left is an inline style for the same reason as the blocks' position below: it changes every second. -->
+                                <div aria-hidden="true" class="absolute inset-y-0 z-10 border-l-2 border-ink" [style.left.px]="row.nowLeftPx"></div>
+                            }
+                            @for (block of row.blocks; track block.entry.id) {
+                                <!-- Note: position and size are bound as inline styles on purpose: they are computed per entry and per second, which Tailwind classes cannot express. -->
+                                <button
+                                    type="button"
+                                    [title]="blockTitle(block)"
+                                    [attr.aria-label]="blockTitle(block)"
+                                    (click)="openDetails(block.entry, $event)"
+                                    [style.left.px]="block.leftPx"
+                                    [style.width.px]="block.widthPx"
+                                    [style.top.px]="block.topPx"
+                                    [style.height.px]="block.heightPx"
+                                    class="absolute cursor-pointer overflow-hidden rounded-sm border-primary px-1.5 text-left text-xs leading-tight text-ink focus:outline-none focus:ring-2 focus:ring-primary"
+                                    [class]="
+                                        block.entry.stoppedAtUtc === null
+                                            ? 'border-2 border-dashed bg-white hover:bg-lavender active:bg-mute/30'
+                                            : 'border-l-4 bg-lavender hover:bg-mute/30 active:bg-mute/50'
+                                    "
+                                >
+                                    <span class="block truncate font-bold">{{ block.entry.title }}</span>
+                                </button>
+                            }
+                        </div>
+                    </div>
+                }
             }
         </div>
     </div>
@@ -121,6 +140,9 @@
                         [disabled]="deleting()"
                         (click)="confirmDelete(entry)"
                     >
+                        @if (deleting()) {
+                            <span aria-hidden="true" class="inline-block size-4 animate-spin rounded-full motion-reduce:animate-none border-2 border-current border-t-transparent"></span>
+                        }
                         {{ deleting() ? 'กำลังลบ…' : 'ยืนยันลบ' }}
                     </button>
                 } @else {

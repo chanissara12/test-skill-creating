@@ -72,4 +72,24 @@ describe('TimerPanelComponent', () => {
         await settle();
         expect(changes).toBe(2);
     });
+
+    it('shows a spinner on the button, which stays disabled, while a start is in flight', async () => {
+        http.expectOne((req) => req.url.endsWith('/timer/running')).flush(null);
+        await settle();
+        const box = page().querySelector('input') as HTMLInputElement;
+        box.value = 'Work';
+        box.dispatchEvent(new Event('input'));
+        fixture.detectChanges();
+        const button = page().querySelector('button') as HTMLButtonElement;
+        expect(button.querySelector('.animate-spin')).toBeNull();
+
+        button.click();
+        fixture.detectChanges();
+        expect(button.querySelector('.animate-spin')).not.toBeNull();
+        expect(button.disabled).toBe(true);
+
+        http.expectOne((req) => req.url.endsWith('/timer/start')).flush(runningEntry);
+        await settle();
+        expect(button.querySelector('.animate-spin')).toBeNull();
+    });
 });

@@ -318,6 +318,19 @@ describe('TimetableComponent', () => {
             expect(document.activeElement).toBe(block);
         });
 
+        it('shows a spinner on the confirm button while the delete is being sent', async () => {
+            await flushWeek([entryOnWednesday(1, 'Write spec', 90)]);
+            await openFirstBlock();
+            await click('ลบ');
+
+            await click('ยืนยันลบ');
+
+            const button = dialogButton('กำลังลบ…') as HTMLButtonElement;
+            expect(button.querySelector('.animate-spin')).not.toBeNull();
+            expect(button.disabled).toBe(true);
+            deleteRequests()[0].flush(null, { status: 204, statusText: 'No Content' });
+        });
+
         it('ignores Escape while the delete is being sent', async () => {
             await flushWeek([entryOnWednesday(1, 'Write spec', 90)]);
             await openFirstBlock();
@@ -329,6 +342,56 @@ describe('TimetableComponent', () => {
 
             expect(dialog()).not.toBeNull();
             deleteRequests()[0].flush(null, { status: 204, statusText: 'No Content' });
+        });
+    });
+
+    describe('loading and screen readers', () => {
+        const skeleton = () => page().querySelector('[role=status]');
+        const blockLabel = () => page().querySelector('button[title]')?.getAttribute('aria-label');
+        const runningOnWednesday = (from: Date) => ({ ...wednesdayEntry(from, 1, 'Write spec', 90), stoppedAtUtc: null });
+
+        it('shows a skeleton while a week loads, but not when the same week is only reloaded', async () => {
+            expect(skeleton()).not.toBeNull();
+
+            nextListRequest().flush([]);
+            await settle();
+            expect(skeleton()).toBeNull();
+
+            (Array.from(page().querySelectorAll('button')).find((b) => b.textContent?.trim() === 'สัปดาห์ถัดไป') as HTMLButtonElement).click();
+            fixture.detectChanges();
+            expect(skeleton()).not.toBeNull();
+            nextListRequest().flush([]);
+            await settle();
+            expect(skeleton()).toBeNull();
+
+            fixture.componentInstance.reload();
+            fixture.detectChanges();
+            expect(skeleton()).toBeNull();
+            nextListRequest().flush([]);
+        });
+
+        it('replaces the skeleton with the timetable again when loading fails', async () => {
+            nextListRequest().flush({ message: 'The database is down.' }, { status: 500, statusText: 'Server Error' });
+            await settle();
+
+            expect(skeleton()).toBeNull();
+            expect(page().querySelector('[role=alert]')?.textContent).toContain('The database is down.');
+        });
+
+        it('tells a screen reader that a running block is running, not only through its dashed outline', async () => {
+            const request = nextListRequest();
+            request.flush([runningOnWednesday(requestedFrom(request))]);
+            await settle();
+
+            expect(blockLabel()).toContain('กำลังเดิน');
+        });
+
+        it('gives a finished block its times without saying it is running', async () => {
+            const request = nextListRequest();
+            request.flush([wednesdayEntry(requestedFrom(request), 1, 'Write spec', 90)]);
+            await settle();
+
+            expect(blockLabel()).toBe('Write spec 09:00–10:30');
         });
     });
 
