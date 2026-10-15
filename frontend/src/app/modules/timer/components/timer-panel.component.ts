@@ -3,7 +3,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Observable, finalize, map } from 'rxjs';
 
 import { formatElapsed } from '../../../shared/helpers/duration.helper';
-import { TimeEntry } from '../models/time-entry.model';
+import { TimeEntry } from '../../../shared/models/time-entry.model';
 import { TimerService } from '../services/timer.service';
 
 @Component({

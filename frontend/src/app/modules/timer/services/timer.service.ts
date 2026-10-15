@@ -1,10 +1,10 @@
-import { HttpClient, HttpErrorResponse } from '@angular/common/http';
+import { HttpClient } from '@angular/common/http';
 import { Injectable } from '@angular/core';
-import { Observable, catchError, map, throwError } from 'rxjs';
+import { Observable, catchError, map } from 'rxjs';
 
 import { API_BASE_URL } from '../../../shared/constants/api.constant';
-import { errorMessageOf } from '../../../shared/helpers/http-error.helper';
-import { TimeEntry } from '../models/time-entry.model';
+import { failWithMessage } from '../../../shared/helpers/http-error.helper';
+import { TimeEntry } from '../../../shared/models/time-entry.model';
 
 @Injectable({ providedIn: 'root' })
 export class TimerService {
@@ -14,17 +14,15 @@ export class TimerService {
         // The API answers 204 No Content when idle, which HttpClient delivers as null.
         return this.http.get<TimeEntry | null>(`${API_BASE_URL}/timer/running`).pipe(
             map((entry) => entry ?? undefined),
-            catchError(this.toError),
+            catchError(failWithMessage),
         );
     }
 
     start(title: string): Observable<TimeEntry> {
-        return this.http.post<TimeEntry>(`${API_BASE_URL}/timer/start`, { title }).pipe(catchError(this.toError));
+        return this.http.post<TimeEntry>(`${API_BASE_URL}/timer/start`, { title }).pipe(catchError(failWithMessage));
     }
 
     stop(): Observable<TimeEntry> {
-        return this.http.post<TimeEntry>(`${API_BASE_URL}/timer/stop`, {}).pipe(catchError(this.toError));
+        return this.http.post<TimeEntry>(`${API_BASE_URL}/timer/stop`, {}).pipe(catchError(failWithMessage));
     }
-
-    private readonly toError = (error: HttpErrorResponse) => throwError(() => new Error(errorMessageOf(error)));
 }

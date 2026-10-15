@@ -15,19 +15,11 @@ public class TimerApiTests(ApiFixture api) : IAsyncLifetime
 
     public Task DisposeAsync() => Task.CompletedTask;
 
-    private sealed record ErrorBody(string Message);
-
     private Task<HttpResponseMessage> StartAsync(string title) =>
         _client.PostAsJsonAsync("/api/timer/start", new { title });
 
     private Task<HttpResponseMessage> StopAsync() =>
         _client.PostAsync("/api/timer/stop", content: null);
-
-    private static async Task AssertHasMessageAsync(HttpResponseMessage response)
-    {
-        var error = await response.Content.ReadFromJsonAsync<ErrorBody>();
-        Assert.False(string.IsNullOrWhiteSpace(error?.Message));
-    }
 
     [DatabaseFact]
     public async Task Start_creates_a_running_timer_with_the_trimmed_title_and_server_time()
@@ -52,7 +44,7 @@ public class TimerApiTests(ApiFixture api) : IAsyncLifetime
             var response = await StartAsync(title);
 
             Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-            await AssertHasMessageAsync(response);
+            await ApiAssert.HasMessageAsync(response);
         }
     }
 
@@ -68,7 +60,7 @@ public class TimerApiTests(ApiFixture api) : IAsyncLifetime
 
         var rejected = await StartAsync("  " + new string('a', 201) + "  ");
         Assert.Equal(HttpStatusCode.BadRequest, rejected.StatusCode);
-        await AssertHasMessageAsync(rejected);
+        await ApiAssert.HasMessageAsync(rejected);
     }
 
     [DatabaseFact]
@@ -78,7 +70,7 @@ public class TimerApiTests(ApiFixture api) : IAsyncLifetime
             "/api/timer/start", new StringContent("{ not json", Encoding.UTF8, "application/json"));
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        await AssertHasMessageAsync(response);
+        await ApiAssert.HasMessageAsync(response);
     }
 
     [DatabaseFact]
@@ -89,7 +81,7 @@ public class TimerApiTests(ApiFixture api) : IAsyncLifetime
         var response = await StartAsync("Second");
 
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
-        await AssertHasMessageAsync(response);
+        await ApiAssert.HasMessageAsync(response);
     }
 
     [DatabaseFact]
@@ -116,7 +108,7 @@ public class TimerApiTests(ApiFixture api) : IAsyncLifetime
         var response = await StopAsync();
 
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
-        await AssertHasMessageAsync(response);
+        await ApiAssert.HasMessageAsync(response);
     }
 
     [DatabaseFact]
