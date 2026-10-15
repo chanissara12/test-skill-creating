@@ -4,7 +4,7 @@
 
 **Blocked by:** 04 (See this week on the timetable).
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [ ] Clicking any block (including very short ones) opens its details
 - [ ] Delete requires an explicit confirmation; cancelling leaves the entry untouched

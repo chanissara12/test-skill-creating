@@ -4,7 +4,7 @@
 
 **Blocked by:** 04 (See this week on the timetable).
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [ ] Previous and Next move exactly one Week (Sunday to Saturday) and show that Week's entries and totals
 - [ ] This Week returns to the current Week

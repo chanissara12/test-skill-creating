@@ -4,7 +4,7 @@
 
 **Blocked by:** 05, 06, 07.
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [ ] No hand-written CSS rules or inline styles, except the computed block and marker positions on the timetable (each documented with a `Note:` comment); DESIGN.md tokens are consumed as Tailwind utilities only
 - [ ] Every interactive element has hover, focus, active and disabled states and keyboard access

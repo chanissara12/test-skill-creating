@@ -4,7 +4,7 @@
 
 **Blocked by:** None (can start immediately).
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [x] The backend builds, its (empty) test project runs green, and the format check from the backend instructions passes
 - [x] The frontend builds and its test runner runs green; a Tailwind utility using a DESIGN.md token (for example the primary colour) renders correctly
