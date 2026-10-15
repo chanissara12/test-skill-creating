@@ -1,4 +1,4 @@
-import { formatElapsed } from './duration.helper';
+import { formatElapsed, formatHoursMinutes } from './duration.helper';
 
 describe('formatElapsed', () => {
     it('shows zero as 00:00:00', () => {
@@ -21,5 +21,24 @@ describe('formatElapsed', () => {
 
     it('never shows a negative time (clock skew)', () => {
         expect(formatElapsed(-5_000)).toBe('00:00:00');
+    });
+});
+
+describe('formatHoursMinutes', () => {
+    it('shows hours and minutes without seconds', () => {
+        expect(formatHoursMinutes(0)).toBe('00:00');
+        expect(formatHoursMinutes(5_400_000)).toBe('01:30');
+    });
+
+    it('drops the seconds instead of rounding them up', () => {
+        expect(formatHoursMinutes(59_999)).toBe('00:00');
+    });
+
+    it('keeps counting hours past 99, as a full week of tracked time can', () => {
+        expect(formatHoursMinutes(168 * 3_600_000)).toBe('168:00');
+    });
+
+    it('never shows a negative time', () => {
+        expect(formatHoursMinutes(-60_000)).toBe('00:00');
     });
 });

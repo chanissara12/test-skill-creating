@@ -1,5 +1,7 @@
 <main class="min-h-screen bg-white font-sans text-ink">
     <h1 class="px-4 pt-4 text-2xl font-bold">Work Time Log</h1>
-    <app-timer-panel />
+    <!-- A saved Start or Stop makes the timetable load the week again. -->
+    <app-timer-panel (entriesChanged)="timetable.reload()" />
+    <app-timetable #timetable />
 </main>
 <router-outlet />

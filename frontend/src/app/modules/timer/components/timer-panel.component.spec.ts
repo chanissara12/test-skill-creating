@@ -51,4 +51,25 @@ describe('TimerPanelComponent', () => {
         expect(page().querySelector('button')?.textContent).toContain('เริ่ม');
         expect((page().querySelector('input') as HTMLInputElement).disabled).toBe(false);
     });
+
+    it('tells its parent that the entries changed after a successful start and a successful stop', async () => {
+        http.expectOne((req) => req.url.endsWith('/timer/running')).flush(null);
+        await settle();
+        let changes = 0;
+        fixture.componentInstance.entriesChanged.subscribe(() => changes++);
+
+        const box = page().querySelector('input') as HTMLInputElement;
+        box.value = 'Work';
+        box.dispatchEvent(new Event('input'));
+        fixture.detectChanges();
+        (page().querySelector('button') as HTMLButtonElement).click();
+        http.expectOne((req) => req.url.endsWith('/timer/start')).flush(runningEntry);
+        await settle();
+        expect(changes).toBe(1);
+
+        (page().querySelector('button') as HTMLButtonElement).click();
+        http.expectOne((req) => req.url.endsWith('/timer/stop')).flush({ ...runningEntry, stoppedAtUtc: new Date().toISOString() });
+        await settle();
+        expect(changes).toBe(2);
+    });
 });

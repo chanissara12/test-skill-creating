@@ -17,6 +17,7 @@ builder.Services.AddControllers().ConfigureApiBehaviorOptions(options =>
 builder.Services.AddDbContext<TimeLogDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("Default")));
 builder.Services.AddScoped<ITimerService, TimerService>();
+builder.Services.AddScoped<ITimeEntryService, TimeEntryService>();
 
 // Only the configured frontend origin may call the API from a browser.
 var allowedOrigin = builder.Configuration["Cors:AllowedOrigin"]

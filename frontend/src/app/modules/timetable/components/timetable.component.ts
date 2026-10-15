@@ -1,0 +1,86 @@
+import { ChangeDetectionStrategy, Component, ElementRef, Signal, afterNextRender, computed, signal, viewChild } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { EMPTY, Subject, catchError, startWith, switchMap, tap } from 'rxjs';
+
+import { formatHoursMinutes } from '../../../shared/helpers/duration.helper';
+import {
+    HOUR_WIDTH_PX,
+    TimetableBlock,
+    WeekTimetable,
+    addDays,
+    buildWeekTimetable,
+    endOfWeek,
+    startOfWeek,
+} from '../../../shared/helpers/timeline.helper';
+import { TimeEntry } from '../../../shared/models/time-entry.model';
+import { TimeEntriesService } from '../services/time-entries.service';
+
+const clock = new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+const weekday = new Intl.DateTimeFormat('th-TH', { weekday: 'short' });
+
+// On opening, the current time is scrolled to this far from the left edge, so a little of the past stays in view.
+const SCROLL_LEAD_PX = 300;
+
+@Component({
+    selector: 'app-timetable',
+    templateUrl: './timetable.component.html',
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    standalone: false,
+})
+export class TimetableComponent {
+    readonly hours = Array.from({ length: 24 }, (_, hour) => hour);
+    readonly formatTotal = formatHoursMinutes;
+    readonly weekFirstDay = startOfWeek(new Date());
+    readonly weekLastDay = addDays(this.weekFirstDay, 6);
+    readonly errorMessage = signal<string | undefined>(undefined);
+    readonly week: Signal<WeekTimetable>;
+
+    private readonly now = signal(new Date());
+    private readonly reloads = new Subject<void>();
+    private readonly scroller = viewChild.required<ElementRef<HTMLElement>>('scroller');
+
+    constructor(timeEntriesService: TimeEntriesService) {
+        // A new request replaces one that is still in flight (switchMap), so a slow answer never overwrites a newer one.
+        // When a request fails, the message is shown and the last loaded week stays on screen (EMPTY adds no new value).
+        const entries = toSignal(
+            this.reloads.pipe(
+                startWith(undefined),
+                switchMap(() =>
+                    timeEntriesService.list(this.weekFirstDay, endOfWeek(this.weekFirstDay)).pipe(
+                        tap(() => this.errorMessage.set(undefined)),
+                        catchError((error: Error) => {
+                            this.errorMessage.set(error.message);
+                            return EMPTY;
+                        }),
+                    ),
+                ),
+                tap(() => this.now.set(new Date())),
+            ),
+            { initialValue: [] as TimeEntry[] },
+        );
+        this.week = computed(() => buildWeekTimetable(entries(), this.weekFirstDay, this.now()));
+
+        // Open near the current time of day instead of at midnight.
+        afterNextRender(() => {
+            const now = new Date();
+            const hoursIntoDay = now.getHours() + now.getMinutes() / 60;
+            this.scroller().nativeElement.scrollLeft = Math.max(0, hoursIntoDay * HOUR_WIDTH_PX - SCROLL_LEAD_PX);
+        });
+    }
+
+    // Loads the week again (called after the timer panel saved a Start or Stop).
+    reload(): void {
+        this.reloads.next();
+    }
+
+    weekdayLabel(day: Date): string {
+        return weekday.format(day);
+    }
+
+    // Full title and times of the whole entry (not just the part on this day).
+    blockTitle(block: TimetableBlock): string {
+        const { title, startedAtUtc, stoppedAtUtc } = block.entry;
+        const stop = stoppedAtUtc ? clock.format(new Date(stoppedAtUtc)) : 'กำลังเดิน';
+        return `${title} ${clock.format(new Date(startedAtUtc))}–${stop}`;
+    }
+}

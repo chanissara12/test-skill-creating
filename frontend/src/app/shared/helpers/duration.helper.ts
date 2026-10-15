@@ -8,3 +8,8 @@ export function formatElapsed(milliseconds: number): string {
     const seconds = totalSeconds % 60;
     return `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
 }
+
+// Formats a length of time as HH:mm (no seconds), for totals. Hours may exceed 99.
+export function formatHoursMinutes(milliseconds: number): string {
+    return formatElapsed(milliseconds).slice(0, -3);
+}

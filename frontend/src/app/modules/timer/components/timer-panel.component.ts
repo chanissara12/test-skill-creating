@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, computed, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, computed, output, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Observable, finalize, map } from 'rxjs';
 
@@ -14,6 +14,9 @@ import { TimerService } from '../services/timer.service';
 })
 export class TimerPanelComponent implements OnInit {
     readonly maxTitleLength = 200;
+
+    // Emitted after a Start or Stop was saved, so the timetable can reload.
+    readonly entriesChanged = output<void>();
 
     readonly draftTitle = signal('');
     readonly running = signal<TimeEntry | undefined>(undefined);
@@ -77,6 +80,7 @@ export class TimerPanelComponent implements OnInit {
                 this.running.set(running);
                 this.draftTitle.set('');
                 this.now.set(Date.now());
+                this.entriesChanged.emit();
             },
             error: (error: Error) => {
                 this.errorMessage.set(error.message);

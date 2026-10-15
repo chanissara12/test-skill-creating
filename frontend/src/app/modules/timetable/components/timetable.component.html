@@ -1,0 +1,55 @@
+<section class="border-t border-hairline bg-white">
+    <div class="flex flex-wrap items-center justify-between gap-4 px-4 py-3">
+        <h2 class="text-base font-bold text-ink tabular-nums">
+            {{ weekFirstDay | date: 'yyyy-MM-dd' }} – {{ weekLastDay | date: 'yyyy-MM-dd' }}
+        </h2>
+        <p class="text-sm text-ink-mute">
+            รวมสัปดาห์
+            <span class="text-base font-bold text-ink tabular-nums">{{ formatTotal(week().totalMs) }}</span>
+        </p>
+    </div>
+    @if (errorMessage(); as message) {
+        <p role="alert" class="px-4 pb-3 text-sm text-err">{{ message }}</p>
+    }
+    <div #scroller class="mx-4 mb-4 max-h-[70vh] overflow-auto rounded-lg border border-hairline">
+        <div class="w-max min-w-full">
+            <div class="sticky top-0 z-30 flex border-b border-hairline bg-white">
+                <div class="sticky left-0 z-40 w-28 shrink-0 border-r border-hairline bg-white"></div>
+                <div class="flex">
+                    @for (hour of hours; track hour) {
+                        <div class="w-14 shrink-0 border-l border-hairline px-1 py-1 text-[10px] text-ink-mute tabular-nums first:border-l-0">
+                            {{ hour | number: '2.0-0' }}:00
+                        </div>
+                    }
+                </div>
+            </div>
+            @for (row of week().days; track row.day.getTime()) {
+                <div class="flex border-b border-hairline last:border-b-0">
+                    <div class="sticky left-0 z-20 w-28 shrink-0 border-r border-hairline bg-white px-2 py-2">
+                        <div class="text-sm font-bold text-ink">{{ weekdayLabel(row.day) }} {{ row.day | date: 'MM-dd' }}</div>
+                        <div class="text-xs text-ink-mute tabular-nums">{{ formatTotal(row.totalMs) }}</div>
+                    </div>
+                    <div class="relative flex" [style.height.px]="row.heightPx">
+                        @for (hour of hours; track hour) {
+                            <div class="w-14 shrink-0 border-l border-hairline first:border-l-0"></div>
+                        }
+                        @for (block of row.blocks; track block.entry.id) {
+                            <!-- Note: position and size are bound as inline styles on purpose: they are computed per entry, which Tailwind classes cannot express. -->
+                            <button
+                                type="button"
+                                [title]="blockTitle(block)"
+                                [style.left.px]="block.leftPx"
+                                [style.width.px]="block.widthPx"
+                                [style.top.px]="block.topPx"
+                                [style.height.px]="block.heightPx"
+                                class="absolute cursor-pointer overflow-hidden rounded-sm border-l-4 border-primary bg-lavender px-1.5 text-left text-xs leading-tight text-ink hover:bg-mute/30 focus:outline-none focus:ring-2 focus:ring-primary active:bg-mute/50"
+                            >
+                                <span class="block truncate font-bold">{{ block.entry.title }}</span>
+                            </button>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+</section>

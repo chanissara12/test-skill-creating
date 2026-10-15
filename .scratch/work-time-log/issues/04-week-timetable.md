@@ -6,13 +6,20 @@ Delivered across the layers: a list behaviour in the API that takes a UTC range 
 
 **Blocked by:** 03 (Start and stop a timer).
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Entries saved in ticket 03 appear as blocks in the correct day lane at the correct time and length
-- [ ] A midnight-crossing entry shows in both days and daily totals count only the portion within each day
-- [ ] Day totals and the Week total are shown and correct
-- [ ] The week starts on Sunday and the timetable opens scrolled near the current time
-- [ ] Short entries remain visible and clickable; hovering shows full title and times
-- [ ] API tests cover the list behaviour, including an entry crossing the range edge and a still-running entry
-- [ ] Jest tests cover every timeline function listed above through its public interface, including midnight crossing and a running entry
-- [ ] The layout follows prototype variant C and DESIGN.md; desktop only
+- [x] Entries saved in ticket 03 appear as blocks in the correct day lane at the correct time and length
+- [x] A midnight-crossing entry shows in both days and daily totals count only the portion within each day
+- [x] Day totals and the Week total are shown and correct
+- [x] The week starts on Sunday and the timetable opens scrolled near the current time
+- [x] Short entries remain visible and clickable; hovering shows full title and times
+- [x] API tests cover the list behaviour, including an entry crossing the range edge and a still-running entry
+- [x] Jest tests cover every timeline function listed above through its public interface, including midnight crossing and a running entry
+- [x] The layout follows prototype variant C and DESIGN.md; desktop only
+
+## Confirmed before starting (2026-10-15)
+
+- **Design gate:** the user confirmed `DESIGN.md` is the only design system to follow (layout: prototype variant C).
+- **Test seams:** (1) the HTTP list API, tested with xUnit against the test database; (2) the pure timeline functions in the frontend (`startOfWeek`, `endOfWeek`, `buildWeekTimetable`), tested with Jest. No component-rendering tests beyond one behaviour test.
+- **New type names:** backend `ITimeEntryService`, `TimeEntryService`, `TimeEntriesController` (reuses `TimeEntryViewModel`); frontend `TimetableModule`, `TimetableComponent`, `TimeEntriesService`, `WeekTimetable`, `DayRow`, `TimetableBlock`. The `TimeEntry` model moves to the shared models folder.
+- **Defaults:** a running entry is drawn as a normal block up to now (live dashed block is ticket 05); the timetable reloads after Start/Stop; totals show `HH:mm`; 56 px per hour; minimum block width 18 px; `formatElapsed` is reused.
